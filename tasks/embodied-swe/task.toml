@@ -1,0 +1,64 @@
+# EmbodiedSWE-Bench "spatula" (Isaac Lab 3.0 / Isaac Sim 6.2, in the official container, Franka + OSC): offline code. The
+# agent writes a controller program with full simulator access; the frozen solve(env) is graded
+# on held-out seeds by EmbodiedSWE's own grader, with no model calls.
+
+schema_version = "1.3"
+
+[task]
+name = "rsib/embodied-swe"
+description = "Offline code: write solve(env) that flips a bread slice in a pan with a spatula and serves it onto a plate (EmbodiedSWE-Bench puzzle.spatula, Franka OSC)"
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 86400.0
+
+[environment]
+cpus = 16
+memory_mb = 65536
+gpus = 1
+
+[verifier]
+timeout_sec = 9000.0            # 2 rollouts x 30 min budget (embodiedswe.json) + Kit boots, with margin
+
+[scoring]
+metric = "score"
+direction = "higher"
+
+[rsi]
+id = "embodied-swe"
+domain = "robotics/sim"
+tier = "L"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "score"               # EmbodiedSWE rubric score in [0, 1], mean over the trajectories
+direction = "maximize"
+secondary = ["success_rate"]
+public = ["success_rate", "trajectories", "crashed", "timed_out"]
+
+[rsi.anchors]
+# baseline: the starter (holds still) scores 0. reference: a full solve.
+baseline = 0.0
+reference = 1.0
+
+[rsi.noise]
+# Judgment call, not measured (the starter scores 0 on every seed): one trajectory of val's 16 moving
+# one rubric step changes the score by 0.0125. 0.02 makes the default margin (2 sigma) 0.04, about
+# three trajectory-steps. GPU physics is not bit-deterministic, so a fixed program does vary.
+sigma = 0.02
+repeats = 0
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1

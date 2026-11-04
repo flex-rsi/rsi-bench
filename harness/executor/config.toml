@@ -1,0 +1,10 @@
+# Executor settings (scope E: the improver may tune these).
+
+max_steps = 60                  # model calls per round
+max_tokens = 32000              # output tokens per model call (the protocol caps this)
+compact_at_input_tokens = 180000
+max_nudges = 2                  # replies without a tool call before the round ends
+bash_timeout_s = 900
+max_tool_output_chars = 16000
+notes_tail_chars = 12000        # how much of the notes file goes into the round prompt
+history_rows = 30

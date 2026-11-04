@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/final.jsonl (one line per task)",
+  "type": "object",
+  "required": [
+    "task_id",
+    "ended_reason",
+    "rounds",
+    "final_commit",
+    "best_val",
+    "test",
+    "normalized",
+    "totals"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "ended_reason": {
+      "type": "string"
+    },
+    "rounds": {
+      "type": "integer"
+    },
+    "final_commit": {
+      "type": "string"
+    },
+    "final_round": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "best_val": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "baseline_val": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "test": {
+      "type": "object",
+      "required": [
+        "status",
+        "score"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object"
+        }
+      }
+    },
+    "normalized": {
+      "type": "object",
+      "properties": {
+        "val": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "test": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": [
+        "wall_s",
+        "gpu_hours",
+        "usd",
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "wall_s": {
+          "type": "number"
+        },
+        "gpu_hours": {
+          "type": "number"
+        },
+        "usd": {
+          "type": "number"
+        },
+        "input_tokens": {
+          "type": "integer"
+        },
+        "output_tokens": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

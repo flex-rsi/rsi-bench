@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/usage.jsonl (one line per model call; phase names the grant that made it)",
+  "type": "object",
+  "required": [
+    "ts",
+    "task_id",
+    "round",
+    "phase",
+    "model",
+    "input_tokens",
+    "output_tokens",
+    "stop_reason"
+  ],
+  "properties": {
+    "ts": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "provider": {
+      "description": "upstream provider returned by the model endpoint; omitted when unavailable",
+      "type": "string"
+    },
+    "response_id": {
+      "description": "upstream response identifier; omitted when unavailable",
+      "type": "string"
+    },
+    "input_tokens": {
+      "type": "integer"
+    },
+    "output_tokens": {
+      "type": "integer"
+    },
+    "cache_read_tokens": {
+      "type": "integer"
+    },
+    "cache_write_tokens": {
+      "type": "integer"
+    },
+    "usd": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "stop_reason": {
+      "type": "string"
+    },
+    "latency_s": {
+      "type": "number"
+    },
+    "lowerings": {
+      "description": "deterministic changes the adapter made to the context; [] = sent exactly",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "charged": {
+      "description": "false: metered, not charged to the task budget (val, test, posthoc); absent: true",
+      "type": "boolean"
+    }
+  }
+}

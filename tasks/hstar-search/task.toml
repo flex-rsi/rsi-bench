@@ -1,0 +1,61 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/hstar-search"
+description = "Humanoid visual search in 360-degree scenes (H*Bench object and path search, plus in-the-wild scenes); success weighted by steps."
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 36000.0
+
+[environment]
+cpus = 8
+memory_mb = 32768
+gpus = 1
+
+[verifier]
+timeout_sec = 3600.0            # the evaluator itself stops the policy after 2700 s per split
+
+[scoring]
+metric = "spl"
+direction = "higher"
+
+[rsi]
+id = "hstar-search"
+domain = "vision/embodied-search"
+tier = "M"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "spl"                 # success weighted by steps; mean of the object-search and path-search averages
+direction = "maximize"
+secondary = ["success", "hos_spl", "hps_spl", "hos_sr", "hps_sr", "avg_steps", "model_calls"]
+public = ["success", "hos_spl", "hps_spl", "hos_sr", "hps_sr", "n", "submitted", "avg_steps",
+          "hos_avg_steps", "hps_avg_steps", "avg_steps_success", "model_calls", "refused_calls"]
+
+[rsi.anchors]
+baseline = 0.19                 # the starter's val spl; it depends on the model under test
+reference = 1.0                 # every episode solved in the fewest actions (no published spl on H*Bench)
+
+[rsi.noise]
+sigma = 0.0                     # to be measured (the starter's success varies with model sampling)
+repeats = 1
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1                   # a policy may run open models (a detector, the Imaginator) while evaluated
+model_access = true
+eval_model_calls_max = 2000     # 20 model calls per episode (val: 100 episodes)
+container = "pytorch"

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/experiments.jsonl",
+  "type": "object",
+  "required": [
+    "exp_id",
+    "task_id",
+    "round",
+    "phase",
+    "kind",
+    "started_at",
+    "ended_at",
+    "status"
+  ],
+  "properties": {
+    "exp_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "experiment",
+        "eval-dev",
+        "eval-val",
+        "eval-test"
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "command": {
+      "type": "string"
+    },
+    "gpus": {
+      "type": "integer"
+    },
+    "backend": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "ended_at": {
+      "type": "string"
+    },
+    "wall_s": {
+      "type": "number"
+    },
+    "gpu_hours": {
+      "type": "number"
+    },
+    "exit_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "log_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifact_dir": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

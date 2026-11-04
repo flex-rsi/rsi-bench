@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/posthoc.jsonl",
+  "type": "object",
+  "required": [
+    "task_id",
+    "round",
+    "commit",
+    "status",
+    "score"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "commit": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "val_score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "redo": {
+      "type": "boolean"
+    },
+    "supersedes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redo_reason": {
+      "type": "string"
+    }
+  }
+}

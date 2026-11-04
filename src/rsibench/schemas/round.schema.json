@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/rounds.jsonl (one line per round)",
+  "type": "object",
+  "required": [
+    "task_id",
+    "round",
+    "started_at",
+    "ended_at",
+    "phases",
+    "candidate",
+    "val",
+    "decision",
+    "decided_by",
+    "harness_changes",
+    "cost",
+    "cumulative",
+    "budget_used_frac"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "ended_at": {
+      "type": "string"
+    },
+    "phases": {
+      "type": "object",
+      "properties": {
+        "executor": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "finished",
+                "stopped",
+                "crash",
+                "timeout",
+                "budget",
+                "refusal",
+                "model_error",
+                "skipped"
+              ]
+            },
+            "steps": {
+              "type": "integer"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            },
+            "warning": {
+              "type": "string"
+            }
+          }
+        },
+        "improver": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "finished",
+                "stopped",
+                "crash",
+                "timeout",
+                "budget",
+                "refusal",
+                "model_error",
+                "skipped"
+              ]
+            },
+            "steps": {
+              "type": "integer"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            },
+            "warning": {
+              "type": "string"
+            }
+          }
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "finished",
+                "stopped",
+                "crash",
+                "timeout",
+                "budget",
+                "refusal",
+                "model_error",
+                "skipped"
+              ]
+            },
+            "steps": {
+              "type": "integer"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            },
+            "warning": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "changed"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "files_changed": {
+          "type": "integer"
+        }
+      }
+    },
+    "val": {
+      "type": "object",
+      "required": [
+        "status",
+        "score"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ok",
+            "error",
+            "skipped",
+            "limit"
+          ]
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object"
+        }
+      }
+    },
+    "best_val_before": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "best_val_after": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "baseline",
+        "accept",
+        "reject",
+        "no-change",
+        "error"
+      ]
+    },
+    "decision_reason": {
+      "type": "string"
+    },
+    "decided_by": {
+      "enum": [
+        "harness",
+        "default",
+        "orchestrator"
+      ]
+    },
+    "accepted_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "harness_changes": {
+      "type": "object",
+      "properties": {
+        "E": {
+          "type": "object",
+          "properties": {
+            "commit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lines": {
+              "type": "integer"
+            }
+          }
+        },
+        "I": {
+          "type": "object",
+          "properties": {
+            "commit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lines": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "violations": {
+      "type": "integer"
+    },
+    "cost": {
+      "type": "object",
+      "required": [
+        "wall_s",
+        "gpu_hours",
+        "usd",
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "wall_s": {
+          "type": "number"
+        },
+        "gpu_hours": {
+          "type": "number"
+        },
+        "usd": {
+          "type": "number"
+        },
+        "input_tokens": {
+          "type": "integer"
+        },
+        "output_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "cumulative": {
+      "type": "object",
+      "required": [
+        "wall_s",
+        "gpu_hours",
+        "usd",
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "wall_s": {
+          "type": "number"
+        },
+        "gpu_hours": {
+          "type": "number"
+        },
+        "usd": {
+          "type": "number"
+        },
+        "input_tokens": {
+          "type": "integer"
+        },
+        "output_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "budget_used_frac": {
+      "type": "number"
+    }
+  }
+}

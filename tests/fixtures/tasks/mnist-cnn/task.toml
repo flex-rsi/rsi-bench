@@ -1,0 +1,57 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/mnist-cnn"
+description = "Train an MNIST classifier from scratch on one GPU within 15 minutes; scored by accuracy."
+authors = [{ name = "agent-rsi-benchmarking" }]
+
+[agent]
+timeout_sec = 7200.0
+
+[environment]
+cpus = 16
+memory_mb = 65536
+gpus = 1
+
+[verifier]
+timeout_sec = 1200.0
+
+[scoring]
+metric = "accuracy"
+direction = "higher"
+
+[rsi]
+id = "mnist-cnn"
+domain = "vision/classification"
+tier = "S"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "accuracy"
+direction = "maximize"
+secondary = ["errors"]
+
+[rsi.anchors]
+baseline = 0.8722   # one-epoch linear starter on val (`rsib task calibrate --backend slurm`)
+reference = 0.9876  # small two-layer CNN, Adam, 5 epochs, on val
+
+[rsi.noise]
+sigma = 0.0        # measured: the seeded starter scored identically in 2 repeats
+repeats = 2
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1
+container = "pytorch"    # mapped to an image in the site profile ([slurm.containers])

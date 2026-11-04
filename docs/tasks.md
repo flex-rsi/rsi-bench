@@ -1,0 +1,558 @@
+# Tasks
+
+The tasks of this release, with the task cards of the Flex-RSI report: what each task measures, how its data were
+built and split, what the solution has to produce and with which resources, the starter solution and the metric;
+then how to prepare its data and its standard run.
+
+Every task follows the same setting: the development split is available to the agent with its labels, while the
+validation and test splits are withheld. Unless stated otherwise, the solution may call the model being evaluated
+within the stated limits, and it may not use the annotations of the source benchmark.
+
+| Area | Task | `--task` | Source | Metric | Test split |
+|---|---|---|---|---|---|
+| Action | [Active Search](#active-search) | `hstar-search` | H*Bench | SPL | 47 episodes |
+| Action | [LIBERO-MAX](#libero-max) | `libero-max-agent` | LIBERO-MAX | Dynamic success rate | 24 episode pairs |
+| Action | [LIBERO-PRO](#libero-pro) | `libero-pro-agent` | LIBERO-PRO | Success rate | 30 episodes |
+| Action | [Embodied-SWE](#embodied-swe) | `embodied-swe` | EmbodiedSWE-Bench | Rubric score | 4 seeds × 8 environments |
+| Reasoning | [Ego-Exo Memory](#ego-exo-memory) | `egoexomem` | EgoExoMem (Ego-Exo4D) | Accuracy | 120 questions |
+| Reasoning | [Kinematics](#kinematics) | `quantiphy-kinematics` | QuantiPhy | MRA | 67 questions |
+| Reasoning | [Mass](#mass) | `quantiphy-mass` | Amazon Berkeley Objects | MRA | 600 items |
+| Reasoning | [Spatial-VSI](#spatial-vsi) | `spatial-vsi` | VSI-Bench | VSI-Bench score | 320 questions |
+| Creation | [Image Editing](#image-editing) | `edit-image-unlimited` | Ours | VLM judge + checks | 80 images |
+| Creation | [Multi-turn Editing](#multi-turn-editing) | `edit-multiturn` | MSE-Bench | VLM judge | 40 sessions |
+| Reconstruction | [3D Tracking](#3d-tracking) | `iggt-tracking` | IGGT (ScanNet, ScanNet++) | T-mIoU | 10 clips |
+| Reconstruction | [Scene from Photo](#scene-from-photo) | `scene3d-harmony` | HARMONY300 | Composite score | 60 photos |
+| Reconstruction | [Scene from Video](#scene-from-video) | `scene3d-holoscene` | HoloScene | Composite score | 6 scenes |
+| Perception | [Visual Search](#visual-search) | `vsearch` | V*Bench, HR-Bench 8K | Accuracy | 140 questions |
+| Perception | [Video Quality](#video-quality) | `video-quality` | YouTube-UGC, Veo 3.1 pairs | (SRCC + pairwise acc.) / 2 | 40 videos, 20 pairs |
+
+## Data
+
+Data lives outside git, under `$RSIB_DATA_ROOT/<task>/{dev,val,test}`. The prepared splits of 3D Tracking,
+Active Search, Visual Search, Video Quality and Image Editing are in the Hugging Face dataset
+[Flex-RSI/RSI-Dataset](https://huggingface.co/datasets/Flex-RSI/RSI-Dataset), in the same layout:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include '<task>/*' --local-dir "$RSIB_DATA_ROOT"
+```
+
+The other tasks are prepared from their sources with `rsib task prepare <task>` (each task below says what it
+needs). Ego-Exo Memory also needs Ego-Exo4D, which is downloaded from its site after accepting its licence; the
+dataset holds only its questions.
+
+## Standard runs
+
+All runs of a task use the same limits (wall-clock hours, GPU hours, tokens, dollars, validation evaluations,
+rounds) and the same executor-phase settings (model calls after which a phase stops; the development gain, as a
+share of the distance between the starter and a strong known solution, at which a phase submits). Each task below
+gives them as flags of `rsib run new`:
+
+```bash
+rsib run new --task <task> --model <model> --effort <effort> --mode full --seed <seed> <the task's flags>
+rsib run start <worktree>
+```
+
+Tasks whose solution calls the model reach it through the orchestrator's gateway during evaluation, so the
+evaluation jobs must be able to reach the machine the orchestrator runs on ([operations](operations.md)).
+
+## Action
+
+### Active Search
+
+`--task hstar-search`
+
+- **Purpose.** Active visual search: a humanoid robot that sees part of a 360-degree scene turns its head to find a named object (object search) or the direction to move in (path search), with as few movements as possible; most targets start out of view.
+
+- **Source and construction.** H*Bench annotates search tasks on real panoramas of transport hubs, shops and streets: an instruction, a target yaw range (and, for objects, a pitch range), and starting directions and difficulty levels; its public benchmark split has 2,400 object-search and 1,600 path-search episodes. Development and validation come from it: each task becomes one episode, with one start drawn by a fixed seed from its annotated starts; each panorama yields at most one episode, so the splits share no scene; both are stratified by search kind and difficulty in proportion to H*Bench. Development has 80 episodes (40 object, 40 path) and validation 100 (50 and 50). The test split uses the non-public in-the-wild panoramas of Imagining in 360$^\circ$, eight from Google Street View and seven generated by image models. A target was annotated by clicking its center (objects, widened by $\pm30^\circ$ in yaw and $\pm20^\circ$ in pitch) or the direction to move in ($\pm10^\circ$), with starts at multiples of $90^\circ$; one start per task gives 47 episodes (33 object, 14 path) in 15 scenes. The agent sees the development episodes with their annotations and panoramas.
+
+- **Setting.** The solution receives the instruction and a 100-degree view ($960\times720$ pixels), never the panorama. With at most ten actions it rotates the head by a relative angle or submits an absolute direction, which ends the episode; no submission fails. As in H*Bench, success requires the submitted direction to lie in the target ranges widened to at least the tolerances above. Up to 20 model calls per episode on average and open models on one GPU are allowed; other H*Bench data are not.
+
+- **Starter solution.** The H*Bench baseline with its prompts: one model call per step on the whole conversation (every view with the environment's feedback), answered with one rotation or submission.
+
+- **Metric.** Success weighted by path length (SPL), counting actions: episode $e$ scores $s_e\,\ell_e/\max(\ell_e,p_e)$, with $s_e\in\{0,1\}$ success, $p_e$ the actions taken (including the submission), and $\ell_e$ the fewest that can succeed (1 if the target center lies within $50^\circ$ of the starting yaw, else 2). Scores are averaged within each search kind, and the two averages are averaged.
+
+- **Hardware.** 1 GPU per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include 'hstar-search/*' --local-dir "$RSIB_DATA_ROOT"
+# or from the sources: python tasks/hstar-search/prepare.py --bench <H*Bench dir> --wild <in-the-wild dir> --out "$RSIB_DATA_ROOT/hstar-search"
+```
+
+Standard run:
+
+```bash
+rsib run new --task hstar-search --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 40 --submit-min-gain 0.02 \
+    --budget wall_hours=10 --budget gpu_hours=12 --budget tokens=80000000 \
+    --budget usd=120 --budget val_max_calls=8
+```
+
+For open-weight models the dollar limit is 250.
+
+### LIBERO-MAX
+
+`--task libero-max-agent`
+
+- **Purpose.** Whether the agent can build a robot controller that adapts when the world changes during execution, not only before it starts.
+
+- **Source and construction.** LIBERO-MAX has 8,000 paired cases on LIBERO scenes, with starting configurations from LIBERO-Plus and LIBERO-PRO. A case pairs a Base episode with a Dynamic episode that has the same start and policy seed and receives one online event: target or receptacle relocation, camera shift, sensor-noise onset, illumination or visual-theme switch, a burst of distractors, or an inserted obstacle. In the selected cases the event fires when the robot comes within 0.18 m of a designated object, before the grasp. Cases are selected from official metadata, never from outcomes. All splits use three LIBERO tasks (a bowl from a drawer onto a plate, a sauce bottle into a basket, a plate pushed to the front of a stove) and the same number of cases per event type: 8, 16 and 24 pairs for development, validation and test. No initial physical state appears in two splits, and states used in earlier experiments are excluded from validation and test. The agent sees the development case definitions.
+
+- **Setting.** A simulated Franka Panda (MuJoCo). Each step, the solution receives RGB and metric depth from an external and a wrist camera, their calibration, the robot state and the instruction, and returns an absolute end-effector pose and gripper command. It may query a frozen X-VLA policy for 30-step action chunks, possibly on transformed images, and call the model up to 16 times per episode; no other model, no training, no simulator state. The Dynamic episode replays the Base episode exactly until the event.
+
+- **Starter solution.** Executes the X-VLA chunks unchanged, without calling the model.
+
+- **Metric.** Dynamic success rate $\frac{1}{P}\sum_{p=1}^{P}s^{\mathrm{dyn}}_p$ over all $P$ planned pairs, with $s^{\mathrm{dyn}}_p\in\{0,1\}$ the LIBERO success check of the Dynamic episode; an episode that reaches the horizon or its 20-minute limit unsolved fails. The Base success rate and the paired difference, as in LIBERO-MAX, are also reported.
+
+- **Hardware.** 1 GPU per experiment and per evaluation; the robot runtime (simulators, LeRobot, X-VLA) in its own Python environment.
+
+Data:
+
+```bash
+scripts/libero/setup_runtime.sh <project root>          # once: pinned simulators, X-VLA, runtime.json, site profile, env.sh
+. <project root>/env.sh
+python tasks/_libero/agent_panels.py --runtime "$LIBERO_RSI_RUNTIME" --out <panels>   # splits of both LIBERO tasks
+LIBERO_RSI_FROZEN_PANELS=<panels> rsib task prepare libero-max-agent
+```
+
+Standard run:
+
+```bash
+rsib run new --task libero-max-agent --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 80 --submit-min-gain 0.02 \
+    --budget wall_hours=72 --budget gpu_hours=256 --budget tokens=150000000 \
+    --budget usd=300 --budget val_max_calls=16 --max-idle-rounds 0
+```
+
+### LIBERO-PRO
+
+`--task libero-pro-agent`
+
+- **Purpose.** Whether the agent can build a robot controller that stays successful when a familiar task is perturbed before the episode starts, rather than relying on the conditions the underlying policy was trained under.
+
+- **Source and construction.** LIBERO-PRO perturbs LIBERO tasks in their objects, initial states, instructions and environments, and releases the perturbed task definitions and initial states. Ten of its categories are used: object appearance, object shape, object texture, object positions, paraphrased instruction, changed task goal, camera view angle, initial robot pose, visual noise or glare, and view occlusion. Each case is one perturbed initial state of one of the three LIBERO tasks of LIBERO-MAX. Cases are selected from official metadata, with equal numbers per category in each split, spread over the three tasks: 10, 20 and 30 episodes for development, validation and test (ten per task in test). No initial physical state appears in two splits or in LIBERO-MAX, and states used in earlier experiments are excluded from validation and test. The agent sees the development case definitions.
+
+- **Setting.** As in LIBERO-MAX: a controller that may query the frozen X-VLA policy and call the model up to 16 times per episode, with a 20-minute limit per episode and no other model.
+
+- **Starter solution.** Executes the X-VLA chunks unchanged, without calling the model.
+
+- **Metric.** Success rate $\frac{1}{N}\sum_{i=1}^{N}s_i$ over all $N$ planned episodes, with $s_i$ the native LIBERO success check; an episode that reaches the horizon or the time limit unsolved fails.
+
+- **Hardware.** as LIBERO-MAX.
+
+Data:
+
+```bash
+# runtime and panels as for LIBERO-MAX
+LIBERO_RSI_FROZEN_PANELS=<panels> rsib task prepare libero-pro-agent
+```
+
+Standard run:
+
+```bash
+rsib run new --task libero-pro-agent --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 80 --submit-min-gain 0.02 \
+    --budget wall_hours=72 --budget gpu_hours=256 --budget tokens=150000000 \
+    --budget usd=300 --budget val_max_calls=16 --max-idle-rounds 0
+```
+
+### Embodied-SWE
+
+`--task embodied-swe`
+
+- **Purpose.** Whether the agent can write, offline with a simulator, a control program for a long-horizon, contact-rich tool-use task that then runs without any model.
+
+- **Source and construction.** The spatula task of EmbodiedSWE-Bench: a Franka arm under operational-space control in Isaac Lab wedges a spatula under a slice of bread in a pan, flips it, reloads it onto the blade and serves it flat onto a plate, touching the bread only with the tool. The environment is built with the benchmark's tools in its setting without agent tools, and the grader is withheld. Each evaluation runs eight parallel environments with random bread size and pose, plate position and spatula pose. Development uses the build seed (8 trajectories); validation 2 and test 4 hidden random seeds (16 and 32 trajectories). The agent receives the benchmark's task statement, its rule for batched solutions and its staged-planning guide.
+
+- **Setting.** A program that commands the robot only through the environment's step function and may read object poses. Writing simulator state, applying external forces, changing physics or the scene, or altering the grader scores zero. A rollout has 30 minutes of wall time, and no model is called during evaluation. During development the agent has full simulator access on one GPU.
+
+- **Starter solution.** Holds the arm still for ten steps and scores zero.
+
+- **Metric.** The EmbodiedSWE-Bench rubric score: each trajectory receives the credit of the furthest stage it reaches, namely spatula lifted (0.2), bread on the blade (0.4), bread flipped and flat (0.6), bread carried on the blade (0.8) and bread on the plate (1.0). The score is the mean over all trajectories of the split; a crashed rollout scores zero, and a timed-out one is scored as it stands. The final-state success rate is also reported.
+
+- **Hardware.** 1 RTX-class GPU per experiment and per evaluation; Isaac Sim 6.2 through apptainer (`examples/embodied-swe/esw-python`, installed as `/opt/embodied-swe/esw-python`).
+
+Data:
+
+```bash
+examples/embodied-swe/setup_embodiedswe.sh <dir> <isaac-sim-6.2.0.sif>   # apptainer pull docker://nvcr.io/nvidia/isaac-sim:6.2.0
+EMBODIEDSWE_ROOT=<dir> rsib task prepare embodied-swe                     # on a GPU node, needs network
+```
+
+Standard run:
+
+```bash
+rsib run new --task embodied-swe --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 10 --max-calls-per-phase 60 --submit-min-gain 0.05 \
+    --budget wall_hours=12 --budget gpu_hours=12 --budget tokens=120000000 \
+    --budget usd=150 --budget val_max_calls=10
+```
+
+## Reasoning
+
+### Ego-Exo Memory
+
+`--task egoexomem`
+
+- **Purpose.** Memory reasoning across two synchronized views of one activity. The evidence for an answer is visible only at particular moments, often in one view, and the model sees few frames per call, so the solution must choose which moments and views to show.
+
+- **Source and construction.** The questions are the Ego-Exo4D portion of EgoExoMem: 764 human-verified four-option questions on 125 recordings of cooking and bicycle repair from Ego-Exo4D. Each recording has an egocentric view from the glasses of the person performing the activity ($448\times448$ pixels) and an exocentric view from a fixed camera ($796\times448$ pixels), synchronized at 30 frames per second and lasting from 20 seconds to 23 minutes. The questions concern habitual location, instantaneous position, resulting location, egocentric direction, object state, allocentric relation, and temporal order. All recordings of one session (the same room and people) are assigned to one split, stratified by activity, with about 35%, 25%, and 40% of the questions in the development, validation, and test splits. Each split then keeps a fixed-seed sample stratified by activity and question type and spread over its videos: 80 questions on 38 videos, 80 on 33, and 120 on 47. The answer options are shuffled once and the videos are anonymized. With each development question the agent also receives the annotated moments at which the answer is visible and the view that shows it.
+
+- **Setting.** Given the question, both videos, and frames of both views at one frame per second, the solution returns an option letter. It may call the model three times per question on average over a split, with at most $16\times448\times448$ pixels per call; further calls are refused. It may run open-weight models, for example for frame retrieval, on one GPU, has no network access during evaluation, and may not use the annotations of EgoExoMem or Ego-Exo4D.
+
+- **Starter solution.** Shows the model eight evenly spaced frames of each view, each labeled with its view and time and downscaled so that all sixteen fit the pixel limit, followed by the question, in a single call.
+
+- **Metric.** Accuracy over the questions of a split; a question without a valid letter counts as wrong. Chance is 0.25.
+
+- **Hardware.** 1 GPU per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+# Ego-Exo4D: accept its licence at https://ego-exo4d-data.org, then download the 448-pixel takes
+pip install ego4d && egoexo -o /path/to/egoexo4d --parts downscaled_takes/448
+# the questions are downloaded from the EgoExoMem repository
+EGOEXO4D_ROOT=/path/to/egoexo4d FFMPEG=ffmpeg FFPROBE=ffprobe rsib task prepare egoexomem
+```
+
+Standard run:
+
+```bash
+rsib run new --task egoexomem --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 10 --max-calls-per-phase 40 --submit-min-gain 0.05 \
+    --budget wall_hours=10 --budget gpu_hours=12 --budget tokens=80000000 \
+    --budget usd=80 --budget val_max_calls=5
+```
+
+### Kinematics
+
+`--task quantiphy-kinematics`
+
+- **Purpose.** Quantitative physical reasoning from video: building a measurement procedure around a fixed vision–language model, so that quantities follow from pixels, time, and a known scale.
+
+- **Source and construction.** QuantiPhy contains 3,355 questions on 569 videos from physics simulations, laboratory recordings, internet clips, and segmented objects. The task uses its public labeled validation set, 158 questions on 24 videos. Each question asks for the size, distance, velocity, or acceleration of an object, possibly at a stated time, in stated units, and gives one prior in physical units: a known length, speed, or acceleration, and for some videos depths. The videos are assigned to fixed lists, so that no video appears in two splits and every split mixes the four video sources and the static and dynamic priors and targets: 39 questions on 6 videos for development, 52 on 8 for validation, and 67 on 10 for testing.
+
+- **Setting.** The solution returns a number in the unit of the question. It does not call the model being evaluated: the only language or vision–language model it may use is Qwen3.8-27B with open weights, served locally with at most 32 images ($32\times640\times360$ pixels in total) per call and eight calls per question on average over a split. It may add non-language vision models and classical code on one GPU, such as point trackers, optical flow, detectors, segmenters, and depth or pose estimators, but no other language model, neither in the solution nor to label data, and no network access during evaluation.
+
+- **Starter solution.** Shows the fixed model four evenly spaced frames, the question, and the prior in a single call with reasoning disabled, and reads the first number of the reply.
+
+- **Metric.** The mean relative accuracy (MRA). For a prediction $\hat y_i$ of the true value $y_i$, $$ \mathrm{MRA}=\frac{1}{N}\sum_{i=1}^{N}\frac{1}{|\mathcal{C}|}\sum_{\theta\in\mathcal{C}} \mathbf{1}\!\left[\frac{|\hat y_i-y_i|}{|y_i|}<1-\theta\right],\qquad \mathcal{C}=\{0.1,0.2,\dots,0.9,0.95\}, $$ and a question without a numeric answer scores zero. MRA was introduced by VSI-Bench with thresholds from 0.5 to 0.95; the threshold set above is that of QuantiPhy.
+
+- **Hardware.** 1 GPU per evaluation (up to 2 per experiment), plus the fixed backbone server on 4 GPUs.
+
+Data:
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3.8-27B --revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+    --port 8100 --tensor-parallel-size 4 --max-model-len 131072 --enable-prefix-caching \
+    --reasoning-parser qwen3 --limit-mm-per-prompt '{"image": 32, "video": 0}'
+export FIXED_VLM_URL=http://127.0.0.1:8100 FIXED_VLM_MODEL=Qwen/Qwen3.8-27B
+export RSIB_PASS_ENV=FIXED_VLM_URL,FIXED_VLM_MODEL RSIB_LOCAL_GPUS=4,5,6,7
+rsib task prepare quantiphy-kinematics
+```
+
+Standard run:
+
+```bash
+rsib run new --task quantiphy-kinematics --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 60 --max-calls-per-phase 80 --submit-min-gain 0.02 \
+    --budget wall_hours=68 --budget gpu_hours=272 --budget tokens=400000000 \
+    --budget usd=600 --budget val_max_calls=20
+```
+
+### Mass
+
+`--task quantiphy-mass`
+
+- **Purpose.** Estimating a property that is not directly visible: weight depends on material, on whether an object is solid or hollow, and on how its volume is filled.
+
+- **Source and construction.** The items are product listings of Amazon Berkeley Objects that state a weight, all three dimensions, and a main photograph. Consumables (food, supplements, cleaning and medical supplies) and multipacks or sets, recognized by name, are removed, as are items outside 10 g to 150 kg and items whose weight divided by the volume of their bounding box lies outside 5 to 5000 kg/m$^3$, which removes unit and listing errors. Variants of one product (the same brand and the same first six words of the name) form one group, and one item per group is drawn with a fixed seed. The groups are split into 300 development, 300 validation, and 600 test items, with at most 3% of a split from one product type, giving about 130 product types per split. Each item keeps its main photograph and up to two others, with the longer side at most 1024 pixels.
+
+- **Setting.** Given the photographs, a coarse product type, and the listed dimensions in centimetres, but not the name, brand, or description, the solution states the weight in kilograms. As in Kinematics, the only language or vision–language model is the fixed Qwen3.8-27B, with at most eight images ($8\times1024\times1024$ pixels) per call and four calls per item on average. Non-language models such as segmenters, depth estimators, image encoders, and regressors trained on the development split may run on one GPU; other language models, text encoders applied to other data, and any external source of the weights are not allowed.
+
+- **Starter solution.** Shows the fixed model the main photograph, the product type, and the dimensions in a single call with reasoning disabled, and reads the first number of the reply.
+
+- **Metric.** The mean relative accuracy with the thresholds of Kinematics, averaged over items; an item without a numeric answer scores zero.
+
+- **Hardware.** as Kinematics.
+
+Data:
+
+```bash
+# the fixed backbone served as for Kinematics
+rsib task prepare quantiphy-mass
+```
+
+Standard run:
+
+```bash
+rsib run new --task quantiphy-mass --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 60 --max-calls-per-phase 80 --submit-min-gain 0.02 \
+    --budget wall_hours=68 --budget gpu_hours=272 --budget tokens=400000000 \
+    --budget usd=600 --budget val_max_calls=20
+```
+
+### Spatial-VSI
+
+`--task spatial-vsi`
+
+- **Purpose.** Spatial reasoning about indoor scenes from a moving camera: counts, metric sizes and distances, relative directions, routes, and the order of appearance.
+
+- **Source and construction.** VSI-Bench contains over 5000 questions on 288 videos of real rooms from ScanNet, ScanNet++, and ARKitScenes. It has ten question types in eight groups: object counting, absolute distance, object size, and room size, answered by numbers, and relative distance, relative direction (easy, medium, hard), route planning, and appearance order, answered by option letters. The scenes of a fixed dataset version are shuffled with a fixed seed and dealt to the test, validation, and development splits in proportions 40%, 30%, and 30%; each split then keeps questions stratified so that the eight groups are weighted as in the official score. The splits hold 80 questions from 46 scenes for development, 480 from 84 scenes for validation, and 320 from 100 scenes for testing.
+
+- **Setting.** Given the video (640 by 480 pixels, one to three minutes), the question, and the options, the solution returns an answer. It may call the model twice per question on average over a split and uses no other model and no downloaded weights; its own code, such as geometry and classical vision with OpenCV, is allowed. It may not read the annotations of the source datasets or access the network, has no GPU, and has four hours per evaluation.
+
+- **Starter solution.** Shows the model 16 evenly spaced frames, 512 pixels wide, with the official VSI-Bench prompt, in one call per question.
+
+- **Metric.** The overall score of VSI-Bench. A multiple-choice answer is correct when its first word is the option letter; a numerical answer receives the mean relative accuracy with thresholds $\{0.50,0.55,\dots,0.95\}$ and the condition $|\hat y-y|/y\le1-\theta$, and zero if it is not a number. Scores are averaged within each group, the three direction levels are first averaged into one, and the eight groups are averaged, giving a value between 0 and 1.
+
+- **Hardware.** no GPU; evaluations run on CPU.
+
+Data:
+
+```bash
+rsib task prepare spatial-vsi            # downloads VSI-Bench (5.4 GB); or VSI_RAW=<unpacked dataset>
+```
+
+Standard run:
+
+```bash
+rsib run new --task spatial-vsi --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 10 --max-calls-per-phase 40 --submit-min-gain 0.05 \
+    --budget wall_hours=10 --budget gpu_hours=0 --budget tokens=80000000 \
+    --budget usd=100 --budget val_max_calls=10
+```
+
+## Creation
+
+### Image Editing
+
+`--task edit-image-unlimited`
+
+- **Purpose.** Whether the agent can build an instruction-based image editor that performs the edit requested in English or Chinese while leaving the rest of the photograph intact, across local, global, text, retouching and restoration, reasoning, and compound edits. The editing model is not prescribed: choosing, combining, and adapting open models is part of the task.
+
+- **Source and construction.** The evaluation set was built for this task in two versions. The first has 100 images; the second, used here, adds 86 images and 14 restoration photographs, for 200 images. The 186 photographs, paintings, and illustrations are CC0 or public-domain works from Wikimedia Commons, each checked for its licence and excluding identifiable people, minors, trademarks, and third-party works; two images of puzzles (an arithmetic problem on a blackboard and a number sequence) were made for the task, and four images carry a reproducible synthetic degradation (blur, color cast, or low contrast) to be undone. The 14 restoration photographs show haze, fog, smoke, lens flare, reflections on glass, or cast shadows; all come from the data of UniSER, including ten of its 39 in-the-wild evaluation images and three of its paired images from NH-HAZE, FlareReal600, and WSRD+. Images are resized to at most $1536\times1024$ pixels with sides that are multiples of 16, and span outdoor (85), product (34), indoor (32), low-quality (21), illustration (13), text (11), and document (4) images. Each image has one instruction, written in Chinese (106) or English (94) together with a translation into the other language, and is assigned to one of 23 kinds of edit in six families: local semantic edits, namely adding, removing, or replacing an object, changing its attributes, changing a pose, setting a count, or moving objects (71 images); global edits of style, background, or lighting, weather, and season (30); text editing, namely replacing, writing, or editing Chinese text (22); retouching and restoration, namely tone, old or degraded photographs and soft effects, removal of clutter, and outpainting to a new aspect ratio (34); edits that require inference, such as candles after three hours of burning, the farthest of several glasses, leaves in late autumn, or a completed sudoku (25); and compound or constrained instructions (18). Each sample is labeled with a difficulty (44, 114, and 42 at three levels) and the size of the edited region (small, medium, large, or global), and is annotated for scoring: a mask of the region allowed to change (92 images), objects that must appear (43) or disappear (32), a target count (11), text that must be readable (24) or gone (14), a target aspect ratio (5), content that must be kept (74), the parts of a compound instruction (13), and a description of the intended result of an inference edit (31). The images are divided into 50 development, 70 validation, and 80 test images, stratified by kind of edit. The development samples come with their annotations, and their evaluations return per-sample judge rationales and side-by-side comparisons; validation and test return only the aggregate score.
+
+- **Setting.** The solution is an editing program that receives the image, the instruction, and its language, and writes an image at the input size. It may use any open-weight editing or generation model, several models at once, vision models, classical image processing, and its own fine-tuning on the development split; Qwen-Image-2.1, Qwen-Image-Edit-2511 with distilled few-step adapters, and HunyuanImage-3.0-Instruct are provided. It may not use the judge's model family, remote services, or the annotations. Evaluation runs offline on four 80 GB GPUs with, on average, 150 s per image per GPU; the solution does not call the model being evaluated.
+
+- **Starter solution.** Qwen-Image-Edit-2509 with an eight-step distilled adapter, given the instruction unchanged, producing one output per image.
+
+- **Metric.** A frozen judge, GLM-4.5V at temperature 0, sees the source and the output and rates instruction compliance $\mathrm{SC}$ and preservation $\mathrm{PR}$, and, from the output alone, perceptual quality $\mathrm{PQ}$, each from 0 to 10. The preservation rubric depends on the kind of edit (for example, only content and composition for style transfer, only the kept subjects for a background change), and the judge is told the annotated parts, the kept content, and, for inference edits, the intended result. Global deformation is measured rather than judged: a SIFT and RANSAC homography from input to output gives the 90th-percentile displacement $p_{90}$ in pixels at a 512-pixel short side, $g=\exp(-\max(0,p_{90}-0.5)/6)$, and $\mathrm{PR}'=\max(0,\mathrm{PR}-5(1-g))$. The judge score is $J=\tfrac{1}{10}\sqrt{\mathrm{SC}\cdot\mathrm{PQ}}\,(0.5+0.05\,\mathrm{PR}')$. The programmatic score $P$ averages the checks that apply: object presence and absence and the exact count, answered by the judge; for text, one minus the lowest character error rate over two OCR readings and the judge's transcription, and the absence of text to be removed; the aspect ratio of outpainted images, $\max(0,1-5|r/r^\ast-1|)$; preservation, $\mathrm{clip}(1-(\mathrm{MAD}-0.02)/0.10)$ from the mean absolute color difference outside the dilated edit region after alignment; and detail, $\mathrm{clip}((cs-0.55)/0.40)$ from the contrast–structure term of SSIM at a 1024-pixel short side. Without a mask, the edit region is formed from the judge's boxes of the edited objects. A sample scores $0.5J+0.5P$ ($J$ if no check applies), and 0 if $\mathrm{SC}<3$ or no image is produced. The score is the mean of the six family means, in $[0,1]$.
+
+- **Hardware.** 4 GPUs (80 GB) per evaluation, plus the GLM-4.5V judge.
+
+Data:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include 'edit-image-unlimited/*' --local-dir "$RSIB_DATA_ROOT"
+# model caches: EDIT_IMAGE_MODELS (Qwen-Image-Edit-2509, Lightning, Qwen2.5-VL-7B), EDIT_IMAGE_UNLIMITED_MODELS
+# (the pre-staged models of the card), EDIT_IMAGE_JUDGE_HOME (GLM-4.5V); list them in RSIB_PASS_ENV and add
+# the model caches to the sandbox's read_only
+```
+
+Standard run:
+
+```bash
+rsib run new --task edit-image-unlimited --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 80 --submit-min-gain 1 \
+    --budget wall_hours=24 --budget gpu_hours=256 --budget tokens=150000000 \
+    --budget usd=300 --budget val_max_calls=20
+```
+
+### Multi-turn Editing
+
+`--task edit-multiturn`
+
+- **Purpose.** Whether the agent can improve a multi-turn editing system, in which each instruction is applied to the previous result and becomes known only at its turn, so that errors in content and image quality accumulate over the session.
+
+- **Source and construction.** All 100 sessions of MSE-Bench, the multi-turn editing benchmark introduced with VINCIE, at a fixed revision. Each session is a real photograph, used unchanged at its original size (many are small), and five instructions that add, remove, or replace objects, change attributes, backgrounds, posture, expression, orientation, position, actions, or interactions, restyle the image, or move the camera (dolly, pan, tilt, orbit); MSE-Bench labels 20 operation types. The sessions are split into 30 development, 30 validation, and 40 test sessions by a seeded search that balances the per-turn counts of the 20 operation types, the sessions with a camera operation, and the images under 512 pixels on the short side. For the development sessions the agent also sees the MSE-Bench annotations (operation types and descriptions of the intended results); the solution never receives them.
+
+- **Setting.** The solution is a session object that is reset with the source image and returns one image per instruction; it may keep earlier images and instructions. The editing model is fixed to the original Qwen-Image-Edit (August 2025) with its four- and eight-step distilled adapters, since the later 2509 and 2511 releases degrade into blocky noise when edited repeatedly. Prompt rewriting, sampler settings, candidate selection, masking and compositing, and Qwen2.5-VL-7B as a helper are allowed; training the editing model, network access, and any copy of MSE-Bench or of VINCIE's outputs are not. Each of four GPUs runs one process with 300 s of start-up and, on average, 60 s per turn. A failed turn, an aspect-ratio change above 5%, or a timeout scores 0 for that turn and the rest of the session. The solution does not call the model being evaluated.
+
+- **Starter solution.** Edits the previous image with each turn's instruction, using the eight-step adapter and a fixed seed.
+
+- **Metric.** Each turn $k$ is judged by a frozen GLM-4.5V at about one megapixel. Given the instructions of turns $1..k$ and the images up to turn $k$, MSE-Bench's own evaluation prompt rates prompt following $\mathrm{PF}$ and consistency $\mathrm{CONS}$ with the previous image; a strict prompt rates the perceptual quality $\mathrm{PQ}$ of the turn's image alone (all 0–10). The turn score is $\tfrac{1}{10}\sqrt{\mathrm{PF}\cdot\mathrm{PQ}}\,(0.5+0.05\,\mathrm{CONS})$, or 0 if $\mathrm{PF}<3$; the score averages over the five turns and then over sessions. MSE-Bench's cumulative success rate, the fraction of sessions in which every turn up to $k$ has $\mathrm{PF}>6$ and $\mathrm{CONS}>6$, is reported for $k=1,3,5$.
+
+- **Hardware.** 4 GPUs (80 GB) per evaluation: one backbone process per GPU, then the GLM-4.5V judge.
+
+Data:
+
+```bash
+rsib task prepare edit-multiturn          # downloads MSE-Bench (needs pyarrow)
+# model caches: EDIT_MULTITURN_MODELS (Qwen-Image-Edit, Qwen-Image-Lightning, Qwen2.5-VL-7B under <models>/hub),
+# EDIT_MULTITURN_JUDGE_HOME (GLM-4.5V); list both in RSIB_PASS_ENV and add <models> to the sandbox's read_only
+```
+
+Standard run:
+
+```bash
+rsib run new --task edit-multiturn --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 80 --submit-min-gain 1 \
+    --budget wall_hours=12 --budget gpu_hours=64 --budget tokens=80000000 \
+    --budget usd=150 --budget val_max_calls=30
+```
+
+## Reconstruction
+
+### 3D Tracking
+
+`--task iggt-tracking`
+
+- **Purpose.** Whether the agent can assemble a system that segments every object in a few widely separated views of an indoor scene and gives each object the same identity in every view, from RGB images alone. Without camera poses or depth, the views must be associated through appearance and implicit geometry: the cross-view instance tracking that IGGT introduced as an evaluation of instance-grounded 3D reconstruction.
+
+- **Source and construction.** The validation and test clips are the 3D tracking benchmark released with IGGT, which samples a few views per scene from ScanNet and ScanNet++ for spatial coverage with sufficient overlap and annotates a subset of objects by hand with identities consistent across views. Each clip has six to nine RGB views, resized to $592\times448$ pixels, typically with four to eight annotated objects such as furniture, lamps, and decorations; walls, floors, and ceilings are not annotated. The 8 ScanNet++ clips form the validation split and the 10 ScanNet clips the test split. The development split consists of 100 clips built from ScanNet++ training scenes that share no scene with the validation clips: eight views are drawn from a random stretch covering 30 to 80% of a capture, and up to eight object-like instances are kept (visible in at least two views, at most a quarter of any view, and at least 0.1% of the clip's pixels); a clip with fewer than four is drawn again. The agent sees the development views with their instance maps.
+
+- **Setting.** The solution is a program that receives the views of one clip and returns one instance map per view, with 0 for the background and identities consistent across views. It may use any publicly released pretrained model or library and needs no training; it does not call the model being evaluated. It runs on one GPU without network access, and a whole split must finish within 45 minutes.
+
+- **Starter solution.** Clusters the colors of each view into six clusters with $k$-means, splits them into connected regions covering 0.2 to 20% of the image, and links each region to the existing track with the nearest mean color, or starts a new track.
+
+- **Metric.** Evaluation is class-agnostic. Predicted and annotated tracks are matched one to one, greedily in decreasing order of their temporal IoU, which accumulates intersection and union over the views: for an annotated object with masks $G_f$ and its matched prediction $P_f$ in views $f=1,\dots,S$, $$ \mathrm{T\text{-}IoU}=\frac{\sum_{f}|P_f\cap G_f|}{\sum_{f}|P_f\cup G_f|}. $$ T-mIoU is the mean of T-IoU over the annotated objects of a clip, averaged over clips (0 to 1). An annotated object without a match scores 0, and predicted tracks without a match are not penalised. T-SR is the share of annotated objects whose per-view IoU exceeds 0.5 in every view in which they appear. The region similarity $\mathcal{J}$ (mean per-view IoU), the boundary measure $\mathcal{F}$ (tolerance 0.8% of the image diagonal), and $\mathcal{J}\&\mathcal{F}$ of DAVIS are also reported. IGGT named T-mIoU and T-SR but defined them per view, averaging the IoU over views and counting an object as tracked when its prediction is non-empty in every view; the accumulated IoU, the IoU threshold of T-SR, and the greedy matching follow the evaluation of S4VY.
+
+- **Hardware.** 1 GPU per experiment and per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include 'iggt-tracking/*' --local-dir "$RSIB_DATA_ROOT"
+```
+
+Standard run:
+
+```bash
+rsib run new --task iggt-tracking --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 40 --submit-min-gain 0.02 \
+    --budget wall_hours=10 --budget gpu_hours=12 --budget tokens=80000000 \
+    --budget usd=100 --budget val_max_calls=15
+```
+
+### Scene from Photo
+
+`--task scene3d-harmony`
+
+- **Purpose.** Whether the agent can build a single-image 3D scene reconstruction system: from one photograph of a furnished room, recover the camera, the room, and every piece of furniture as a complete object with plausible unseen sides, with physically based materials and lighting, so that a path tracer reproduces the photograph.
+
+- **Source and construction.** The photographs are those of HARMONY300: 100 renders of 3D-FRONT rooms, which have ground-truth geometry, and 200 real photographs, half of moderate and half of high complexity. Each difficulty is split separately with a fixed seed (the renders stratified by their number of annotated objects) into 10, 10, and 20 photographs for development, validation, and test, giving 30, 30, and 60; the remaining 179 photographs are held out of every split, and one render whose image differs from its ground truth is excluded. On the renders the annotated furniture and its meshes come from the 3D-FRONT ground truth. On the real photographs up to eight pieces of furniture per photograph are annotated by Mask2Former panoptic segments of furniture classes (score at least 0.5, at least 0.5% of the image); on the renders this procedure recovers 85% of the annotated objects. The agent sees the development photographs with all labels.
+
+- **Setting.** The solution writes a Blender scene per photograph within 120 s per photograph; the evaluator renders it with Cycles from the scene's own camera under fixed rules (only meshes, physically based shader nodes, non-emissive materials, at most 64 lights). It may use any public pretrained model on one GPU, but not HARMONY300, 3D-FRONT, 3D-FUTURE, or HARMONY's code, and does not call the model being evaluated.
+
+- **Starter solution.** An empty room box in flat colors matched to the photograph, one ceiling light, and the same guessed camera with a 60° field of view for every photograph.
+
+- **Metric.** $s=(A+O+G)/3$ in $[0,1]$, with $A$ and $O$ averaged over all photographs and $G$ over the renders. Appearance $A=\tfrac13[\max(0,1-\mathrm{NCLIP}/0.25)+\max(0,1-\mathrm{PL}/0.1)+1-\mathrm{LPIPS}]$, where N-CLIP (one minus the cosine similarity of CLIP ViT-B/32 embeddings) and the photometric loss PL are HARMONY's metrics and LPIPS is that of Zhang et al.. Objects $O=\mathrm{mean}_k\, r_k\min(1,\mathrm{IoU}_k/0.5)$, where $\mathrm{IoU}_k$ compares the meshes assigned to object $k$ with its mask and the realness $r_k=\mathrm{clip}((\min_j P_j-0.5)/0.4,0,1)$; $P_j$ is the probability that Qwen3-VL-8B, shown untextured views from four directions, judges the reconstruction a more real object than shortcut $j$ (its visible surface as a sheet, that sheet extruded to a prism, or its bounding box). Geometry $G=(F_{0.1}+F_{0.01}+F^{\mathrm{obj}}+F^{\mathrm{obj}}_{\mathrm{hidden}})/400$, with HARMONY's normalized scene F-scores in the protocol of Gen3DSR (furniture only, both point sets normalized by their bounding box and aligned by ICP, thresholds 0.1 and 0.01) and per-object F-scores at 5 cm, in percent, after scaling by the median ratio of true to rendered depth; $F^{\mathrm{obj}}_{\mathrm{hidden}}$ counts recall only on the parts of the object the photograph does not show. A missing or unloadable scene, or one with more than 4 million triangles, renders black and has no geometry. For calibration, the true meshes textured with the photograph score 0.879 on the development renders, and HARMONY's released reconstructions score 0.422 on the test split.
+
+- **Hardware.** 1 GPU per experiment and per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+rsib task prepare scene3d-harmony
+PYTHONPATH="$RSIB_DATA_ROOT/scene3d-harmony/dev/scorer/pylib" \
+    python tasks/scene3d-harmony/label_real.py --out "$RSIB_DATA_ROOT/scene3d-harmony"   # GPU
+```
+
+Standard run:
+
+```bash
+rsib run new --task scene3d-harmony --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 40 --submit-min-gain 0.02 \
+    --budget wall_hours=12 --budget gpu_hours=36 --budget tokens=80000000 \
+    --budget usd=100 --budget val_max_calls=10
+```
+
+### Scene from Video
+
+`--task scene3d-holoscene`
+
+- **Purpose.** Whether the agent can build a video-to-simulation pipeline: from the frames of an indoor video alone, estimate the cameras and reconstruct a scene of separate textured objects on a fixed background that has the true shape, reproduces the frames, and remains at rest under physical simulation.
+
+- **Source and construction.** The scenes are the nine released with HoloScene, each with frames, ground-truth cameras, per-object instance masks, a support graph, and a ground-truth surface. The test split is the six scenes evaluated by CoDimRecon: three Replica rooms and three ScanNet++ captures. Validation is one iGibson house; development is another iGibson house and a game room filmed with a phone (undistorted). The iGibson and phone sequences keep every third frame. Each face of the ground-truth surface is labeled by the masks that see it, and each object is marked dynamic if it rests on the floor or on another object and static if it hangs from a wall or the ceiling. The agent sees the development frames with all labels and the scoring code.
+
+- **Setting.** The input is only the RGB frames, without cameras, masks, or depth, as in CoDimRecon. The solution writes a glTF scene (at most 4 million triangles) and a camera for every frame, within 1200 s per scene, on one GPU and 16 CPU cores. The scene is placed in the ground-truth frame by the similarity transform that aligns its cameras with the true ones, rendered unlit from the true cameras, and each mesh node is assigned to the object or background whose masks it covers most. Any public pretrained model may be used, but not the HoloScene release or its source datasets; the model being evaluated is not called.
+
+- **Starter solution.** An empty room box in the mean color of the frames, with every camera at one point.
+
+- **Metric.** Per scene, $s=(G+A+P)/3$ with $G=(\mathrm{F1}_{5\,\mathrm{cm}}+\mathrm{NC})/200$ on 500,000 points of the whole scene, $A=(\mathrm{SSIM}+1-\mathrm{LPIPS})/2$ over all input frames, and $P$ the share of dynamic objects that are reconstructed (mask IoU at least 0.5) and stay in place; $s$ is averaged over scenes. Stability follows CoDimRecon: each dynamic object, decomposed into convex hulls by CoACD, is released alone in MuJoCo for 3 s with all else fixed, and falls if it tilts more than 30° or moves more than $\max(5\,\mathrm{cm}, 0.2\,d)$, with $d$ its bounding-box diagonal. A missing or unloadable scene scores as empty. The ground-truth surface colored from the frames scores 0.936 on the test split.
+
+- **Hardware.** 1 GPU and 16 CPU cores per experiment and per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+rsib task prepare scene3d-holoscene
+python tasks/scene3d-holoscene/label_gt.py --out "$RSIB_DATA_ROOT/scene3d-holoscene"   # GPU, pytorch container
+```
+
+Standard run:
+
+```bash
+rsib run new --task scene3d-holoscene --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 15 --max-calls-per-phase 40 --submit-min-gain 0.02 \
+    --budget wall_hours=12 --budget gpu_hours=36 --budget tokens=80000000 \
+    --budget usd=100 --budget val_max_calls=10
+```
+
+## Perception
+
+### Visual Search
+
+`--task vsearch`
+
+- **Purpose.** Whether the agent can build a visual search procedure around a model with a limited field of view: questions concern small objects in photographs of 2K to 8K resolution, while each model call may contain at most one megapixel, so the solution must decide where to look.
+
+- **Source and construction.** The questions come from V*Bench (191 multiple-choice questions on about 2K photographs: 115 on object attributes with four options, 76 on relative position with two) and HR-Bench 8K (200 questions with four options on 151 photographs of about 8K resolution, half on a single instance and half across instances; of its four rotated listings of each question one is drawn with a fixed seed). V*Bench is split by category and HR-Bench by photograph, so no photograph appears in two splits. The test split has 140 questions (70 from each benchmark). Development and validation are stratified subsets of 70 questions (33 and 37) and 80 questions (40 and 40). The agent sees the development photographs, questions, answers, and, for V*Bench, the boxes of the queried objects.
+
+- **Setting.** The solution answers each question with an option letter. It may call the model being evaluated on average at most five times per question, with at most $1024\times1024$ pixels per call in total; it may crop, resize, and run open-weight models on one GPU, and may not use either benchmark beyond the development split.
+
+- **Starter solution.** Shows the model the whole photograph reduced to one megapixel with the question, in a single call.
+
+- **Metric.** Accuracy over the questions of the split; a question without a valid letter counts as wrong. Accuracies on V*Bench and HR-Bench 8K are reported separately. Chance accuracy on the validation split is 0.303.
+
+- **Hardware.** 1 GPU per evaluation; evaluations use the orchestrator's Python with Pillow.
+
+Data:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include 'vsearch/*' --local-dir "$RSIB_DATA_ROOT"
+# or from the sources: rsib task prepare vsearch   (needs pyarrow)
+```
+
+Standard run:
+
+```bash
+rsib run new --task vsearch --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 10 --max-calls-per-phase 40 --submit-min-gain 0.05 \
+    --budget wall_hours=10 --budget gpu_hours=12 --budget tokens=80000000 \
+    --budget usd=100 --budget val_max_calls=10
+```
+
+### Video Quality
+
+`--task video-quality`
+
+- **Purpose.** Whether the agent can turn a general multimodal model into a judge of perceptual video quality that agrees with people, both for real user videos and for generated videos.
+
+- **Source and construction.** The rated videos are 100 videos of YouTube-UGC, chosen from its 1,380 videos with mean opinion scores (MOS) excluding 4K: seven per content category for 14 categories (eight for sports and gaming), evenly spaced in MOS within each category. Each lasts 16.6 to 20 s at 360p to 1080p, and its MOS (1 to 5) averages 105 to 154 crowdsourced ratings from the subjective study of Yim et al.. The pairs are 50 pairs from a public human-preference study of Veo 3.1, each pitting Veo 3.1 against one of seven other text-to-video models on the same prompt (5 to 6 s clips). Each pair has 15 reliability-weighted crowd votes on three questions: prompt alignment, fewer visual artifacts, and overall preference, the last two judged without the prompt. A clip with more than 55% of the votes wins; otherwise the question is a tie. The videos are dealt in order of category and MOS, and the pairs in order of opposing model, into 30, 30, and 40 videos and 15, 15, and 20 pairs; the clip order in each pair is randomized. The agent sees the development videos, frames at two per second, and labels with vote shares and rating spreads.
+
+- **Setting.** The solution scores each video and answers the three questions for each pair. It may call the model being evaluated on average at most three times per item, with at most eight $1024\times576$ frames' worth of pixels per call, and may run open-weight models on one GPU; it may not use the source datasets.
+
+- **Starter solution.** Asks for a rating from 1 to 5 given eight evenly spaced frames, and answers all three questions about a pair given six frames of each clip.
+
+- **Metric.** $s=(\mathrm{SRCC}+\mathrm{Acc})/2$, where SRCC is Spearman's rank correlation between the solution's scores and the MOS over the split's videos (a video without a score receives the median of the others), and Acc is the share of non-tied pair questions answered correctly, pooled over the three criteria (a missing answer is wrong). PLCC and per-criterion accuracies are also reported. Chance is 0.25.
+
+- **Hardware.** 1 GPU per evaluation, inside the `pytorch` container.
+
+Data:
+
+```bash
+huggingface-cli download Flex-RSI/RSI-Dataset --repo-type dataset --include 'video-quality/*' --local-dir "$RSIB_DATA_ROOT"
+# or from the sources: VQA_ROOT=/path/to/VQA_TestSet_200 FFMPEG=ffmpeg FFPROBE=ffprobe rsib task prepare video-quality
+```
+
+Standard run:
+
+```bash
+rsib run new --task video-quality --model <model> --effort <effort> --mode full --seed <seed> \
+    --max-rounds 10 --max-calls-per-phase 40 --submit-min-gain 0.05 \
+    --budget wall_hours=10 --budget gpu_hours=12 --budget tokens=80000000 \
+    --budget usd=80 --budget val_max_calls=5
+```

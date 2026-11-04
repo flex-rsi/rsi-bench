@@ -1,0 +1,50 @@
+schema_version = "1.3"
+
+[task]
+name = "rsib/libero-pro-agent"
+description = "Agent-as-policy on LIBERO-PRO: frozen X-VLA plus the run's model, calibrated cameras and depth"
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 129600.0
+
+[environment]
+cpus = 16
+memory_mb = 131072
+gpus = 1
+
+[verifier]
+timeout_sec = 28800.0           # one evaluation; model-calling episodes are slow
+
+[scoring]
+metric = "success_rate"
+direction = "higher"
+
+[rsi]
+id = "libero-pro-agent"
+domain = "robotics/libero"
+tier = "L"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "success_rate"
+direction = "maximize"
+secondary = ["model_queries", "model_query_elapsed_s"]
+public = ["policy_model_calls", "policy_model_live_calls", "policy_model_refused", "policy_model_failures", "episode_time_limits", "successes", "planned_episodes", "completed_episodes", "rollouts", "model_queries", "model_query_elapsed_s", "wall_s"]
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1
+model_access = true
+eval_model_calls_max = 500      # planned episodes x 16 calls each (tests/evaluate.py), with margin

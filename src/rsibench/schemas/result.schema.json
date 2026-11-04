@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Result file written by an evaluator (reward.json) or an experiment (metrics.json)",
+  "description": "Top-level keys other than the reserved ones are metrics (a plain Harbor reward.json is valid). Reserved: metrics (more metrics, any JSON), artifacts (files in the output directory), info (free-form diagnostics).",
+  "type": "object",
+  "properties": {
+    "metrics": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mime": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "info": {
+      "type": "object"
+    }
+  }
+}

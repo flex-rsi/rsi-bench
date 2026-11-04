@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/violations.jsonl",
+  "type": "object",
+  "required": [
+    "task_id",
+    "round",
+    "phase",
+    "kind",
+    "detail"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "path",
+        "diff_size",
+        "large_file",
+        "crash_rollback",
+        "accept_fallback",
+        "resume_discard"
+      ]
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "detail": {
+      "type": "string"
+    }
+  }
+}

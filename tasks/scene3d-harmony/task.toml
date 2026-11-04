@@ -1,0 +1,67 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/scene3d-harmony"
+description = "A Blender scene (its own camera, room shell, each piece of furniture as its own whole 3D object, PBR materials and lights) from one of HARMONY300's 300 photos (3D-FRONT renders and real photos), nothing else given; the HARMONY paper's N-CLIP, PL and LPIPS of the Cycles render, each annotated piece of furniture judged by a VLM against shortcuts built from its own front surface (sheet, prism, box), and on the renders the paper's Chamfer / F-scores and per-object F-scores at 5 cm vs the true furniture."
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 36000.0
+
+[environment]
+cpus = 16
+memory_mb = 65536
+gpus = 1
+
+[verifier]
+timeout_sec = 14400.0           # test: 60 photos x 120 s + 600 s for the solution, then Blender and the judge (~30 s a photo)
+
+[scoring]
+metric = "score"
+direction = "higher"
+
+[rsi]
+id = "scene3d-harmony"
+domain = "vision/3d-scene-reconstruction"
+tier = "M"
+artifact = "code"
+verifier_tier = "learned"
+
+[rsi.metric]
+primary = "score"               # (appearance_term + object_term + geometry_term) / 3 (geometry on the 3D-FRONT renders)
+direction = "maximize"
+secondary = ["appearance_term", "object_term", "geometry_term", "n_clip", "pl", "lpips",
+             "paper_chamfer", "paper_f@0.1", "paper_f@0.01", "paper_f@0.001", "object_realness",
+             "object_iou", "object_f", "object_f_hidden"]
+public = ["appearance_term", "object_term", "geometry_term", "n_clip", "pl", "lpips", "psnr",
+          "ssim", "paper_chamfer", "paper_f@0.1", "paper_f@0.01", "paper_f@0.001",
+          "object_realness", "object_iou", "object_found", "object_f", "object_f_hidden",
+          "object_f10", "object_cd", "object_precision", "object_recall", "object_recall_hidden",
+          "depth_absrel", "appearance_term_easy", "appearance_term_medium",
+          "appearance_term_complicated", "object_term_easy", "object_term_medium",
+          "object_term_complicated", "n", "n_easy", "failed", "objects", "lights", "triangles",
+          "materials_replaced", "fov", "render_s", "seconds", "timed_out"]
+
+[rsi.anchors]
+baseline = 0.076821             # the starter (a room box in flat colors, a guessed 60-degree camera, one area light) on val (`rsib task calibrate`, 2 repeats)
+reference = 1.0                 # the ideal: a render equal to the photo, every piece of furniture a real object in place, the true geometry (the true meshes with the photo as base color score 0.879 on dev's renders)
+
+[rsi.noise]
+sigma = 0.0                     # 2 repeats on different nodes differ by 6e-8
+repeats = 2
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1
+container = "pytorch"

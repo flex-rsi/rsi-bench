@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+
+# Per-worktree scratch written by the orchestrator and the harness (never committed)
+.rsib/
+
+# Local site configuration (scheduler account, container paths, credentials)
+*.local.toml
+site.toml
+.env

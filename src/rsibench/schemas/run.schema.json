@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/run.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "branch",
+    "created_at",
+    "base",
+    "mode",
+    "tasks",
+    "model",
+    "seed",
+    "protocol",
+    "budgets",
+    "harness_tree",
+    "rsibench_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "base": {
+      "type": "object",
+      "required": [
+        "ref",
+        "commit"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
+      }
+    },
+    "mode": {
+      "enum": [
+        "base",
+        "fixed-i",
+        "full"
+      ]
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "tier",
+          "version_hash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "version_hash": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "adapter",
+        "name"
+      ],
+      "properties": {
+        "adapter": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "auth": {
+          "enum": [
+            "cli",
+            "api",
+            null
+          ]
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "params": {
+          "type": "object"
+        },
+        "usd_metering": {
+          "type": "boolean"
+        }
+      }
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "protocol": {
+      "type": "object"
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "wall_hours",
+          "gpu_hours",
+          "usd",
+          "tokens",
+          "val_max_calls",
+          "tier"
+        ]
+      }
+    },
+    "improver_source": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
+      }
+    },
+    "executor_source": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
+      }
+    },
+    "harness_tree": {
+      "type": "string"
+    },
+    "compute": {
+      "type": "object"
+    },
+    "rsibench_version": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "sandbox": {
+      "type": "object",
+      "description": "filesystem sandbox settings (absent = off)",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "read_only": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hide": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mask": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "git_view": {
+          "type": "boolean",
+          "description": "phases can read the run's own Git history (absent = no, runs created before it was recorded)"
+        }
+      },
+      "required": [
+        "enabled"
+      ]
+    }
+  }
+}

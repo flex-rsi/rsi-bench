@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "results/runs.jsonl (one summary row per indexed run-branch commit)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "ref",
+    "commit",
+    "indexed_at",
+    "mode",
+    "model",
+    "effort",
+    "seed",
+    "base",
+    "protocol_id",
+    "tasks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "ref": {
+      "type": "string"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "indexed_at": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "base",
+        "fixed-i",
+        "full"
+      ]
+    },
+    "model": {
+      "type": "string"
+    },
+    "effort": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "base": {
+      "type": "string"
+    },
+    "improver_source": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "executor_source": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "protocol_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$"
+    },
+    "metrics": {
+      "description": "names of the metrics that computed the task entries (built-ins and plugins)",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "description": "Keys of the built-in metrics; metric plugins add their own keys.",
+        "required": [
+          "task_id",
+          "tier",
+          "direction",
+          "rounds",
+          "accepted",
+          "rejected",
+          "baseline_val",
+          "best_val",
+          "first_round_gain",
+          "later_gain",
+          "test",
+          "normalized",
+          "val_auc",
+          "test_auc",
+          "ended_reason",
+          "cost",
+          "harness_commits",
+          "violations"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "maximize",
+              "minimize"
+            ]
+          },
+          "anchors": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "rounds": {
+            "type": "integer"
+          },
+          "accepted": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer"
+          },
+          "no_change": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "baseline_val": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "best_val": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "first_round_gain": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "later_gain": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "late_gain": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "test": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "normalized": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "val_auc": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "test_auc": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "posthoc_points": {
+            "type": "integer"
+          },
+          "false_acceptance": {
+            "type": "object"
+          },
+          "ended_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "eval_model": {
+            "description": "model calls of val and test evaluations (metered, not charged)",
+            "type": "object",
+            "properties": {
+              "calls": {
+                "type": "integer"
+              },
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "usd": {
+                "type": "number"
+              }
+            }
+          },
+          "harness_commits": {
+            "type": "object"
+          },
+          "harness_lines": {
+            "type": "object"
+          },
+          "violations": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "model_calls": {
+      "type": "integer"
+    },
+    "sandboxed": {
+      "type": "boolean",
+      "description": "the run had the filesystem sandbox on; results tables leave out rows without it unless asked"
+    },
+    "sandbox_waiver": {
+      "type": "object",
+      "description": "a run made without the sandbox that the maintainers accepted as a standard run",
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

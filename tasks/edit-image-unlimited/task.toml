@@ -1,0 +1,74 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/edit-image-unlimited"
+description = "Instruction-based image editing on 200 curated images (v2: 186 CC0/public-domain + 14 user-provided restoration photos; dev 50 / val 70 / test 80, inputs <= 1536x1024 px) (6 edit families); unlimited track: the agent chooses any open-weight editing model and any tools (starter: Qwen-Image-Edit-2509); scored by a frozen VLM judge plus programmatic checks."
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 43200.0
+
+[environment]
+cpus = 16
+memory_mb = 131072
+gpus = 4
+
+[verifier]
+timeout_sec = 5400.0   # up to 20 test samples per GPU (<= 600 s start-up + 150 s each) plus the judge
+
+[scoring]
+metric = "overall"
+direction = "higher"
+
+[rsi]
+id = "edit-image-unlimited"
+domain = "generation/image-editing"
+tier = "L"           # 24 h wall, 256 GPU h, 150M tokens, 20 val calls
+artifact = "code"
+verifier_tier = "judge"
+
+[rsi.metric]
+primary = "overall"
+direction = "maximize"
+secondary = ["sc", "pq", "pr", "pr_judge", "geometry", "program", "cat_A", "cat_B", "cat_C", "cat_E", "cat_F", "cat_G"]
+public = ["n"]
+
+[rsi.anchors]
+# 200 images (dev 50 / val 70 / test 80), measured on val on an 8x H200 node: starter 3 repeats,
+# reference 2 repeats of a pipeline kept outside this repository.
+baseline = 0.574     # starter on val
+reference = 0.606    # out-of-repo reference pipeline on val
+
+[rsi.noise]
+sigma = 0.00483805   # starter on val, 3 repeats
+repeats = 3
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 4
+eval_gpus = 4
+model_access = false
+
+# Standard run (same for every model): tier L (24 h wall), --max-rounds 15, --submit-min-gain 1.0
+# (dev noise ~0.01 exceeds 2% of the 0.024 anchor span, so the default line submitted noise).
+
+# Not read by rsib; documents the frozen evaluation stack of this task version.
+[edit_image]
+backbone = "free (any open-weight model; starter Qwen/Qwen-Image-Edit-2509 + Lightning 8 steps)"
+staged_models = "Qwen/Qwen-Image-2.1, Qwen/Qwen-Image-Edit-2511, lightx2v/Qwen-Image-Edit-2511-Lightning, tencent/HunyuanImage-3.0-Instruct in $EDIT_IMAGE_UNLIMITED_MODELS; anything else downloaded by the agent into $RSIB_CACHE"
+forbidden = "judge family (GLM vision models), remote services at evaluation"
+judge = "zai-org/GLM-4.5V"
+judge_settings = "vLLM, bf16, tensor_parallel=4, temperature=0, thinking off, images <= 1536 px"
+protocols = "per sub-category (local, motion, style, background, environment, tone, restore, reframe, reasoning, compound): protocol-specific PR rubric for the judge and protocol-specific pixel checks; edit region = mask or judge-grounded boxes (+shadows etc.) for unmasked local edits"
+geometry = "SIFT + RANSAC homography; g = exp(-max(0, p90 - 0.5)/6) from p90 of |H(x)-x| over the inlier hull (px at 512 short side), deducted from judge PR: PR_eff = max(0, PR - 5(1-g)); preserve = MAD outside the dilated mask after aligning with H; detail = SSIM contrast-structure at 1024 short side after alignment (mean outside mask / frame median), (cs-0.55)/0.40"
+ocr = "easyocr (ch_sim+en and en-only) plus judge transcription; best CER of the three"

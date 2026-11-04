@@ -1,0 +1,56 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/toy-regression"
+description = "Fit a smooth 1-D function from noisy samples; scored by MSE on hidden query points."
+authors = [{ name = "agent-rsi-benchmarking" }]
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+cpus = 1
+memory_mb = 2048
+gpus = 0
+
+[verifier]
+timeout_sec = 300.0
+
+[scoring]
+metric = "mse"
+direction = "lower"
+
+[rsi]
+id = "toy-regression"
+domain = "generic-ml"
+tier = "XS"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "mse"
+direction = "minimize"
+secondary = ["max_abs_err"]
+
+[rsi.anchors]
+baseline = 0.293272   # starter workspace on val (`rsib task calibrate`)
+reference = 0.0025    # noise floor: target noise variance 0.05^2
+
+[rsi.noise]
+sigma = 0.0         # deterministic evaluator
+repeats = 3
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 0
+eval_gpus = 0

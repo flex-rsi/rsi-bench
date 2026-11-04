@@ -1,0 +1,63 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/scene3d-holoscene"
+description = "Simulation-ready compositional 3D scene from an indoor video alone (RGB frames, no cameras or masks: CoDimRecon's setting, on the HoloScene scenes), scored with CoDimRecon's geometry, rendering, latent-similarity and rigid-body stability metrics after placing the scene by its estimated cameras."
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 36000.0
+
+[environment]
+cpus = 16
+memory_mb = 131072
+gpus = 1
+
+[verifier]
+timeout_sec = 14000.0           # test: 6 scenes x 1200 s + 600 s for the solution, then ~8 min of scoring per scene; under the 4 h job limit
+
+[scoring]
+metric = "score"
+direction = "higher"
+
+[rsi]
+id = "scene3d-holoscene"
+domain = "vision/3d-scene-reconstruction"
+tier = "M"
+artifact = "code"
+verifier_tier = "learned"
+
+[rsi.metric]
+primary = "score"               # (geometry_term + appearance_term + physics_term) / 3, per scene, averaged
+direction = "maximize"
+secondary = ["cd", "f1", "nc", "psnr", "ssim", "lpips", "layout", "motion", "stable_ground",
+             "stable_all", "stable_all_gt", "object_iou", "object_recall"]
+public = ["geometry_term", "appearance_term", "physics_term", "cd", "f1", "nc", "precision",
+          "recall", "psnr", "ssim", "lpips", "layout", "motion", "stable_all", "stable_ground",
+          "stable_all_gt", "stable_ground_gt", "object_iou", "object_recall", "coverage",
+          "camera_rot_err", "camera_ate", "n",
+          "failed", "nodes", "triangles", "seconds", "timed_out"]
+
+[rsi.anchors]
+baseline = 0.173094             # the starter (an empty room box in the frames' mean color, its cameras at one point) on val (`rsib task calibrate`, 2 repeats)
+reference = 1.0                 # the ideal: the ground-truth surface, renders equal to the frames, every object stable
+
+[rsi.noise]
+sigma = 0.0                     # the starter and the evaluator are deterministic (2 identical repeats)
+repeats = 2
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1
+container = "pytorch"

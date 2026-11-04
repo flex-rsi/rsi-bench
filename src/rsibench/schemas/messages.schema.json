@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "neutral message list of one /v1/complete call (the canonical context)",
+  "description": "The model sees the messages, and the parts of each content, in list order.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "role"
+    ],
+    "properties": {
+      "role": {
+        "enum": [
+          "user",
+          "assistant",
+          "tool_results"
+        ]
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "const": "user"
+            }
+          }
+        },
+        "then": {
+          "$ref": "#/$defs/user"
+        }
+      },
+      {
+        "if": {
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "const": "assistant"
+            }
+          }
+        },
+        "then": {
+          "$ref": "#/$defs/assistant"
+        }
+      },
+      {
+        "if": {
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "const": "tool_results"
+            }
+          }
+        },
+        "then": {
+          "$ref": "#/$defs/tool_results"
+        }
+      }
+    ]
+  },
+  "$defs": {
+    "user": {
+      "required": [
+        "content"
+      ],
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/content"
+        }
+      }
+    },
+    "assistant": {
+      "properties": {
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "arguments"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "raw": {}
+      }
+    },
+    "tool_results": {
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "tool_call_id",
+              "content"
+            ],
+            "properties": {
+              "tool_call_id": {
+                "type": "string"
+              },
+              "content": {
+                "$ref": "#/$defs/content"
+              },
+              "is_error": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "content": {
+      "type": [
+        "string",
+        "array"
+      ],
+      "items": {
+        "$ref": "#/$defs/part"
+      }
+    },
+    "part": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "text",
+            "image"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "image"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/image"
+          }
+        }
+      ]
+    },
+    "text": {
+      "required": [
+        "type",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "image": {
+      "required": [
+        "type",
+        "mime",
+        "data"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "mime": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp"
+          ]
+        },
+        "data": {
+          "description": "standard base64 without line breaks; 7000000 characters hold an image of up to 5 MiB",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 7000000
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "records/artifacts.jsonl",
+  "type": "object",
+  "required": [
+    "task_id",
+    "round",
+    "kind",
+    "path",
+    "bytes"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "kind": {
+      "enum": [
+        "transcript",
+        "experiment",
+        "large_file",
+        "log"
+      ]
+    },
+    "path": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bytes": {
+      "type": "integer"
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# The EmbodiedSWE (isaacsim-6) interpreter, run inside the official Isaac Sim 6.2 image: hosts with glibc 2.34
+# cannot load Isaac Sim 6.2 natively. --nv for the GPU (not --nvccli, which hides it). --containall: the process sees
+# the image, the venv (read-only), the caller's cwd and the paths in $ESW_BIND (':'-separated, PATH or PATH:ro),
+# nothing else of the host; with ESW_BIND_ALL_PROJ=1 the whole of /proj instead (setup and development).
+# apptainer cannot start inside rsib's sandbox (no /var/lib/apptainer there), so this container IS the sandbox
+# of a graded rollout, as EmbodiedSWE's own grading container is.
+set -euo pipefail
+A=${ESW_APPTAINER:-apptainer}
+SIF=${ESW_SIF:-/opt/embodied-swe/isaac-sim-6.2.0.sif}
+V=${ESW_VENV:-/opt/embodied-swe/EmbodiedSWE/.venv}
+U=${ESW_UVPY:-/opt/embodied-swe/uv-python}   # the venv's base interpreter (uv-managed)
+# inside rsib's sandbox (site: hide /var/lib, read_only /var/lib/sss) apptainer's starter falls back to the
+# default prefix and wants /var/lib/apptainer/mnt/session: there /var/lib is a private tmpfs, so create it
+[ -d /var/lib/apptainer/mnt/session ] || mkdir -p /var/lib/apptainer/mnt/session 2>/dev/null || true
+L=$(dirname "$V")/externals/IsaacLab   # the venv installs Isaac Lab editable from here
+h=; binds=(--bind "$V:$V:ro" --bind "$U:$U:ro" --bind "$L:$L:ro" --bind "$PWD")
+# setup runs: all of /proj, and the host git (the image has none; EmbodiedSWE's build receipt records the rev)
+if [ "${ESW_BIND_ALL_PROJ:-0}" = 1 ]; then binds=(--bind /proj --bind /usr/bin/git:/usr/local/bin/git:ro); h=${ESW_HOME:-/opt/embodied-swe/home}; fi
+IFS=, read -r -a extra <<< "${ESW_BIND:-}"
+for p in "${extra[@]}"; do
+  [ -z "$p" ] && continue
+  case "$p" in *:ro) binds+=(--bind "${p%:ro}:${p%:ro}:ro");; *) binds+=(--bind "$p");; esac
+done
+# HOME, caches and TMPDIR on a bound host directory: --containall's own /tmp and HOME are a 64 MB tmpfs
+# (sessiondir max size), too small for the asset download and Kit's caches
+h=${h:-${ESW_HOME:-$HOME/.esw}}
+mkdir -p "$h/tmp" "$h/cache"; [ -e "$h/.cache" ] || ln -s cache "$h/.cache"   # the scrubbed child's default cache
+# --containall passes no host environment: forward the caller's task variables explicitly
+for k in PYTHONPATH PYTHONNOUSERSITE PYTHONDONTWRITEBYTECODE HF_HUB_OFFLINE CUDA_VISIBLE_DEVICES OMNI_KIT_ALLOW_ROOT \
+         VK_DRIVER_FILES VK_ICD_FILENAMES $(compgen -e | grep -E '^(ESW_|RSIB_)' || true); do
+  [ -n "${!k+x}" ] && export "APPTAINERENV_$k=${!k}"
+done
+# HOME is also bound over the passwd home, which a child started with a scrubbed environment falls back to
+# (EmbodiedSWE's boot check keeps only HOME=Path.home())
+exec "$A" -s exec --nv --containall "${binds[@]}" --home "$h:$HOME" --pwd "$PWD" --env HOME="$HOME" --env XDG_CACHE_HOME="$h/cache" --env TMPDIR="$h/tmp" \
+  --env OMNI_KIT_ACCEPT_EULA=YES "$SIF" "$V/bin/python" "$@"

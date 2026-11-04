@@ -1,0 +1,74 @@
+# edit-multiturn: multi-turn image editing on MSE-Bench. Harbor-style task description plus the
+# [rsi] extension used by agent-rsi-benchmarking.
+
+schema_version = "1.3"
+
+[task]
+name = "rsib/edit-multiturn"
+description = "Multi-turn instruction-based image editing on MSE-Bench (VINCIE; 100 sessions x 5 turns, dev 30 / val 30 / test 40 sessions): each turn edits the result of the previous one and only the current instruction is known; fixed backbone Qwen-Image-Edit (Aug 2025) with its 8-step Lightning LoRA; scored per turn by a frozen GLM-4.5V judge."
+# Backbone: the original Qwen-Image-Edit, not 2509 or 2511. Edited turn after turn, 2509 (with or
+# without Lightning, 8 to 40 steps, any attention kernel) and 2511 (with its 8-step Lightning LoRA)
+# break into blocky colour noise within 2-4 turns; the original with its Lightning LoRA stays clean.
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 86400.0           # informational; the run budget comes from [rsi].tier
+
+[environment]
+cpus = 16
+memory_mb = 131072
+gpus = 4                        # informational; experiment GPUs are capped by [rsi.resources]
+
+[verifier]
+timeout_sec = 5400.0            # test: up to 50 turns per GPU (300 s start-up + 60 s each) plus the judge
+
+[scoring]
+metric = "score"
+direction = "higher"
+
+[rsi]
+id = "edit-multiturn"
+domain = "generation/image-editing"
+tier = "M"                      # 12 h wall, 64 GPU h, 30 val calls (protocol/default.toml)
+artifact = "code"
+verifier_tier = "judge"
+
+[rsi.metric]
+# score: mean over sessions and turns of sqrt(PF*PQ)/10 * (0.5 + 0.5*CONS/10), 0 if PF < 3
+primary = "score"
+direction = "maximize"
+secondary = ["success_t1", "success_t2", "success_t3", "success_t4", "success_t5",
+             "score_t1", "score_t2", "score_t3", "score_t4", "score_t5",
+             "pf", "cons", "pq", "failed_turns", "edit_s_per_turn"]
+# val/test records keep these besides the score: MSE-Bench's cumulative success rate per turn
+public = ["n", "success_t1", "success_t2", "success_t3", "success_t4", "success_t5"]
+
+[rsi.anchors]
+# Measured on val on 4x RTX PRO 6000 Blackwell (96 GB); every turn is judged at the backbone's output
+# size (tests/evaluate.py).
+# The reference pipeline is kept OUT of this repository (the agent can read every file of its
+# worktree).
+baseline = 0.673852   # starter on val, mean over seeds 0, 1, 2 (0.6661, 0.6771, 0.6784)
+reference = 0.711687  # reference pipeline on val, mean of 2 seed sets (0.7125, 0.7109)
+
+[rsi.noise]
+# A fixed seed makes the starter's images identical from run to run, so repeating one workspace
+# shows almost no noise: sigma is the population SD of the starter's val score over seeds 0, 1, 2.
+sigma = 0.00548819
+repeats = 3
+
+[rsi.splits]
+# Sub-directories of $RSIB_DATA_ROOT/edit-multiturn/. Only dev is shown to the agent.
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"          # downloads MSE-Bench at a pinned revision, writes the splits
+evaluate = "tests/test.sh"      # writes $RSIB_OUTPUT_DIR/reward.json
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 4         # GPUs one run_experiment call may request
+eval_gpus = 4                   # one backbone per GPU, then the GLM-4.5V judge over all four
+model_access = false            # fixed backbone; the solution does not call the run's model

@@ -1,0 +1,53 @@
+# Site profile template for the SLURM backend. Copy to ~/.config/rsib/site.toml (or point
+# $RSIB_SITE at your copy) and fill in your own values. Keep the real file out of version control.
+
+[slurm]
+account = "my_account"                      # sbatch --account
+partition = "gpu_a,gpu_b"                   # several partitions: SLURM picks the first with room
+gpus_flag = "--gpus-per-node"               # or set `gres = true` to request --gres=gpu:N
+cpus_per_gpu = 16
+mem_per_gpu_gb = 64
+poll_s = 15                                 # sacct polling interval
+max_queue_s = 21600                         # cancel a job not done by submission + timeout + this
+# container_image = "/path/to/default.sqsh" # optional default image for every job
+container_mounts = ["/data:/data"]          # srun --container-mounts for container jobs
+container_flags = []                        # extra srun flags for container jobs
+extra_sbatch = []                           # e.g. ["--qos=normal"]
+# cpu_partition = "cpu"                     # run CPU-only experiments and evaluations as jobs here
+# cpu_cpus = 8                              # their CPUs (default 8) and memory (default 32 GB)
+# cpu_mem_gb = 32
+# cpu_max_minutes = 240                     # clamp their time limit to the partition's
+
+[slurm.containers]
+# Logical names used by tasks ([rsi.resources] container) -> container images (srun --container-image).
+pytorch = "/path/to/pytorch.sqsh"
+
+[phase]
+# Phases, and whatever an agent runs from its shell, run on this machine. On a shared login node,
+# keep them small: heavy work then goes through experiments.
+# cpus = 8                                  # pin each phase and its children to this many cores
+# nice = 10                                 # lower their scheduling priority
+# threads = 8                               # OpenMP / MKL / OpenBLAS / numexpr thread pools
+
+[sandbox]
+# Restrict what agent code can read (phases, experiments, the solution under evaluation).
+# On by default; `enabled = false` (or `rsib run new --no-sandbox`) makes unsandboxed runs.
+enabled = true
+read_only = []                              # shared resources agents may use, e.g. a model cache
+mask = []                                   # e.g. ["/run/munge"] to block direct SLURM use
+hide = []                                   # extra roots to hide besides the defaults
+max_procs = 8192                            # processes (threads included) per sandboxed launch; 0: no limit
+git_view = true                             # phases can read the run's own Git history
+archive_days = 7                            # keep a finished run's archived scratch this long
+
+[local]
+gpus = ""                                   # GPU pool of the local backend, e.g. "0,1,2,3";
+#                                           # set here, even empty, it overrides $RSIB_LOCAL_GPUS
+max_parallel = 4                            # jobs the local backend runs at once
+
+[gateway]
+# Where phases, experiments and evaluations reach the orchestrator. SLURM jobs on other nodes that
+# call the model need an address they can reach; tokens then travel over plain HTTP.
+host = "127.0.0.1"                          # bind address; "0.0.0.0" for every interface
+# advertise = "login01.example.org"         # host name in RSIB_GATEWAY_URL (default: host, or
+#                                           # this machine's name when host is 0.0.0.0)

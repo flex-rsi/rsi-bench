@@ -1,0 +1,61 @@
+# Harbor-style task description plus the [rsi] extension used by agent-rsi-benchmarking.
+schema_version = "1.3"
+
+[task]
+name = "rsib/vsearch"
+description = "Answer questions about small objects in 2K-8K photos with a 1 MP field of view per model call (V*Bench + HR-Bench 8K); accuracy."
+authors = [{ name = "Flex-RSI" }]
+
+[agent]
+timeout_sec = 36000.0
+
+[environment]
+cpus = 8
+memory_mb = 32768
+gpus = 1
+
+[verifier]
+timeout_sec = 3600.0            # the evaluator itself stops the solver after 2700 s per split
+
+[scoring]
+metric = "accuracy"
+direction = "higher"
+
+[rsi]
+id = "vsearch"
+domain = "vision/visual-search"
+tier = "S"
+artifact = "code"
+verifier_tier = "exact"
+
+[rsi.metric]
+primary = "accuracy"
+direction = "maximize"
+secondary = ["acc_vstar", "acc_hrbench8k", "model_calls"]
+public = ["acc_vstar", "acc_hrbench8k", "n", "answered", "model_calls", "refused_calls"]
+
+[rsi.anchors]
+# Model-independent anchors: chance on val (V* questions have 4 or 2 options, HR-Bench 4) and a
+# perfect score. The starter's score depends on the model under test (r0 of each run records it).
+baseline = 0.303
+reference = 1.0
+
+[rsi.noise]
+sigma = 0.02       # estimated from repeated starter evaluations, scaled to the 80-question val split
+repeats = 3
+
+[rsi.splits]
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"
+evaluate = "tests/test.sh"
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1
+eval_gpus = 1                   # a solution may run open models (e.g. a detector) while evaluated
+model_access = true
+eval_model_calls_max = 700      # the evaluator allows 5 calls per question of a split (dev 350, val 400, test 700)

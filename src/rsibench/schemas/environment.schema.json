@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "environment",
+  "description": "What a finished run left in its scratch directory (downloaded models, packages, repositories) and where it was archived.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "archived_at",
+    "delete_after",
+    "inventory"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "archive": {
+      "type": "string",
+      "description": "archive directory name under the archive root"
+    },
+    "archived_at": {
+      "type": "string"
+    },
+    "delete_after": {
+      "type": "string"
+    },
+    "scratch_moved": {
+      "type": "boolean"
+    },
+    "large_artifacts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "large_artifact_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "inventory": {
+      "type": "object",
+      "required": [
+        "bytes",
+        "top_level",
+        "hf_models",
+        "python_packages",
+        "git_repos"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "top_level": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "bytes"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "bytes": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "hf_models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "repo"
+            ],
+            "properties": {
+              "repo": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "revisions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "bytes": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "python_packages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "git_repos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "remote": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "commit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

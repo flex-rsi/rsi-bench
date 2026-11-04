@@ -1,0 +1,92 @@
+# Protocol constants. FROZEN: identical for every model and every run in a comparison.
+#
+# A run copies the resolved values into records/run.json at creation time, so editing this file
+# later never changes the meaning of an existing run. Budgets are per task; in stream mode each
+# task in the sequence gets the budget of its own tier.
+#
+# The tier numbers below are starting points for a pilot. Calibrate them on your own tasks
+# (cost of one experiment x the number of rounds you want to afford) before publishing results.
+
+schema_version = "1.0"
+
+[run]
+# Safety cap only. Runs are meant to end on budget, not on a round count, because one round
+# costs minutes on a segmentation task and hours on a robotics or video-generation task.
+max_rounds = 200
+# Wall-clock limit for a single harness phase (executor, improver or meta).
+phase_timeout_min = 180
+# Upper bound for one experiment submitted through run_experiment.
+experiment_timeout_min = 240
+# Changed lines allowed in harness/ per improver or meta phase; larger diffs are reverted.
+max_harness_diff_lines = 400
+# Files larger than this are never committed (they belong in the artifact store).
+max_file_mb = 5
+# After this many consecutive rounds with a crashed phase, harness/ is rolled back to the last
+# state that ran a clean round.
+consecutive_crash_rollback = 2
+# End a task after this many consecutive rounds that produced neither a candidate solution nor a
+# harness change (the agent has stopped making progress); 0 disables the rule.
+max_idle_rounds = 5
+# Hard cap on the model calls of one grant (a harness phase, an experiment job, an evaluation),
+# whatever the harness config says (a phase stuck in a loop stops here even if budget remains).
+max_model_calls_per_phase = 80
+# A round ends as soon as a dev evaluation beats the dev score of the accepted solution: that
+# evaluated state is submitted for validation. After the improving evaluation the executor gets
+# `submit_grace_calls` more model calls (notes, finish); experiments and evaluations are refused.
+submit_on_dev_improvement = true
+submit_grace_calls = 3
+# The dev gain over the accepted solution that submits on its own, as a share of the task's anchor
+# span |reference - baseline| (0.02: 2% of the way from the starter to the reference). A smaller
+# gain leaves the round running; the executor can still submit it by finishing. 0: any gain.
+submit_min_gain = 0.02
+# A round whose executor ends without calling finish (call limit, timeout, budget, crash) submits
+# only its best dev evaluation that beat the accepted solution; with none, its unmeasured changes
+# are discarded and no validation call is spent ("best_dev"). "workspace": submit the workspace as
+# the executor left it (what a release without the key does).
+unfinished_submit = "best_dev"
+# When the run is over: score every accepted version on test (records/posthoc.jsonl), then
+# inventory the run's scratch (downloaded models, packages, repositories) into
+# records/environment.jsonl and move the scratch and every artifact larger than max_file_mb into
+# the archive, out of every agent's reach; the site's retention period decides when it is deleted.
+posthoc_at_end = true
+archive_at_end = true
+# Most candidate directories one dev evaluation call may score (concurrently).
+max_eval_candidates = 8
+# Hard cap on max_tokens per model call, whatever the harness asks for.
+max_tokens_per_call = 64000
+# true: refuse a model call (HTTP 400 inexact_context) whose context the adapter cannot deliver
+# as given (it would reorder, relabel, add or drop parts); false: send it and record the lowerings.
+exact_context = false
+# Default acceptance rule used when the harness rule is disabled (base mode) or crashes.
+default_accept_sigma_k = 2.0
+default_accept_min_rel = 0.0
+
+# Budget tiers. wall_hours / gpu_hours / usd / tokens are limits; val_max_calls bounds how many
+# candidates may be scored on the validation split.
+[tiers.XS]   # smoke tests and toy tasks
+wall_hours = 0.5
+gpu_hours = 0.0
+usd = 5.0
+tokens = 5_000_000
+val_max_calls = 30
+
+[tiers.S]    # cheap tasks: single GPU or CPU, minutes per experiment
+wall_hours = 4.0
+gpu_hours = 8.0
+usd = 60.0
+tokens = 30_000_000
+val_max_calls = 40
+
+[tiers.M]    # vision training / fine-tuning, tens of minutes per experiment
+wall_hours = 12.0
+gpu_hours = 64.0
+usd = 150.0
+tokens = 80_000_000
+val_max_calls = 30
+
+[tiers.L]    # robotics simulation RL, video/audio generation, multi-GPU training
+wall_hours = 24.0
+gpu_hours = 256.0
+usd = 300.0
+tokens = 150_000_000
+val_max_calls = 20

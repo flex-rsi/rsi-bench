@@ -1,0 +1,14 @@
+# Improver settings (scope I: editable by the improver itself only in mode=full).
+
+max_steps = 30
+max_tokens = 16000
+compact_at_input_tokens = 150000
+max_nudges = 1
+bash_timeout_s = 300
+max_tool_output_chars = 16000
+history_rows = 40
+meta_every_rounds = 4           # periodic self-review in mode=full; 0 disables it
+
+[accept]
+sigma_k = 2.0                   # required gain over the best accepted score, in task-noise sigmas
+min_rel_improvement = 0.0       # and at least this relative gain

@@ -1,0 +1,94 @@
+# Task template. Copy this directory to tasks/<your-task-id>/ and fill it in.
+# Directories whose name starts with "_" are ignored by `rsib task list`.
+#
+# The top half is the Harbor task format (so the same package can be read by Harbor-based tools);
+# the [rsi] section is what agent-rsi-benchmarking needs.
+
+schema_version = "1.3"
+
+[task]
+name = "rsib/<task-id>"
+description = "<one sentence>"
+authors = [{ name = "<you>" }]
+
+[agent]
+timeout_sec = 14400.0           # informational; the run budget comes from [rsi].tier
+
+[environment]
+cpus = 8
+memory_mb = 65536
+gpus = 1                        # informational; experiment GPUs are capped by [rsi.resources]
+
+[verifier]
+timeout_sec = 1800.0            # timeout of one evaluator run (any split)
+
+[scoring]
+metric = "<primary metric>"
+direction = "higher"            # higher | lower
+
+[rsi]
+id = "<task-id>"                # must equal the directory name
+domain = "vision/segmentation"  # free text, recorded in run.json; use it to split meta-train/test
+tier = "M"                      # XS | S | M | L, see protocol/default.toml
+artifact = "code"               # informational: code | checkpoint | predictions | samples
+verifier_tier = "exact"         # informational: exact | learned | judge (trust in the metric)
+
+[rsi.metric]
+primary = "<key in reward.json>"
+direction = "maximize"          # maximize | minimize
+secondary = []                  # informational: other metrics worth watching
+# public = ["<key>"]            # optional: the only scalar metrics (besides the primary one) that
+#                               # val/test records keep; default: every scalar metric
+
+[rsi.anchors]
+# 0 = baseline, 1 = reference in normalized scores. Measure the baseline with
+# `rsib task calibrate <id>` and set the reference to a strong known solution (published SOTA,
+# an expert implementation). Keep the reference solution itself OUT of this repository: the
+# agent can read every file in its worktree, including tasks/.
+baseline = 0.0
+reference = 1.0
+
+[rsi.noise]
+# Standard deviation of the baseline score over repeated evaluations (seeds, sampling).
+# The default acceptance rule needs a gain of 2 sigma; measure it, do not guess.
+sigma = 0.0
+repeats = 3                     # informational: how many evaluations sigma was measured over
+
+[rsi.splits]
+# Sub-directories of $RSIB_DATA_ROOT/<task-id>/. Only dev is shown to the agent.
+dev = "dev"
+val = "val"
+test = "test"
+
+[rsi.entrypoints]
+prepare = "prepare.py"          # builds the splits; may download data
+evaluate = "tests/test.sh"      # writes $RSIB_OUTPUT_DIR/reward.json
+workspace = "environment/workspace"
+
+[rsi.resources]
+experiment_gpus_max = 1         # GPUs one run_experiment call may request
+eval_gpus = 1                   # GPUs the evaluator needs (0 = CPU)
+# container = "pytorch"         # logical image name; the site profile maps it to an image
+#                               # ([slurm.containers]), and the task's SLURM jobs run inside it
+# model_access = true           # the solution may call the run's model when it is evaluated: the
+#                               # evaluator gets RSIB_GATEWAY_URL / RSIB_GATEWAY_TOKEN to hand on
+# eval_model_calls_max = 500    # with model_access: model calls one evaluation may make
+#                               # (default: the protocol's max_model_calls_per_phase)
+
+# ---------------------------------------------------------------------------------------------
+# Domain notes (pick the closest, delete the rest)
+#
+# vision/segmentation   artifact=checkpoint|code, metric=miou (maximize), verifier_tier=exact.
+#                       Evaluator runs inference on held-out images and computes mIoU.
+# vision/depth          metric=abs_rel (minimize) with secondary delta1; mask invalid depth.
+# vision/vqa            Prefer multiple-choice or numeric answers (exact match, verifier_tier=exact).
+#                       Open-ended answers need a frozen judge model from a different family than
+#                       the model under test (verifier_tier=judge) and a larger noise sigma.
+# 3d/reconstruction     metric=chamfer (minimize) or fscore@tau (maximize); outputs are large, so
+#                       write them to $RSIB_ARTIFACT_DIR in experiments and keep only code in git.
+# robotics/sim          Isaac Lab / ManiSkill; metric=success_rate over N episodes with hidden
+#                       seeds for val/test; tier=L; eval_gpus>=1. Reward design and code-as-policy
+#                       tasks keep the artifact small (a reward file or a policy script).
+# generation/image      metric=fid (minimize) or a CLIP/VLM score; fix the sample count and the
+# generation/video      seeds; FID/FVD/FAD are noisy: measure sigma with >=3 repeats.
+# generation/audio      Use verifier_tier=learned; add a frozen VLM/CLAP judge as a secondary metric.

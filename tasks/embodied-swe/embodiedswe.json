@@ -1,0 +1,42 @@
+{
+  "upstream": "https://github.com/EmbodiedSWE/EmbodiedSWE",
+  "commit": "1237316c427d0d5b688bbfe4f8c101f8dc13c791",
+  "paper": "arXiv:2609.27308 (EmbodiedSWE: Coding Agents for Long Horizon Dexterous Robotics)",
+  "stage": {
+    "suite": "puzzle",
+    "scene": "spatula",
+    "robot": "franka",
+    "controller": "osc"
+  },
+  "condition": "no_tools",
+  "rules": [
+    "batch_solve"
+  ],
+  "skills": [
+    "staged_planning"
+  ],
+  "num_envs": 8,
+  "rollout_budget_s": 1800,
+  "splits": {
+    "dev": 1,
+    "val": 2,
+    "test": 4
+  },
+  "documentation": {
+    "paper_scores": {
+      "Fable 5.1": 0.6,
+      "Opus 5": 0.6,
+      "Opus 4.8": 0.4,
+      "Astra": 1.0,
+      "Sol": "1.00 (reward hack, counted 0)",
+      "Terra": 0.2
+    },
+    "paper_protocol": "one 4-hour run per (task, model), one RTX 4090, Docker; Table 6 of the paper"
+  },
+  "branch": "isaacsim-6",
+  "runtime": {
+    "image": "nvcr.io/nvidia/isaac-sim:6.2.0",
+    "python": "/opt/embodied-swe/esw-python",
+    "why": "Isaac Sim 6.2 wheels need glibc 2.35, which hosts such as RHEL 9 do not have (5.1 crashes on the r590 driver, upstream issue #135). Warp precompiled headers are off (SIGBUS on GPFS); the venv's sitecustomize.py sets it."
+  }
+}
